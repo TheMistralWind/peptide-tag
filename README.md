@@ -156,4 +156,4 @@ Made by: [@https://robin-gustafsson.com/](https://robin-gustafsson.com/)
 
 ---
 
-**Turn any text into a protein! 🧬✨** 
+**Turn any text into a protein! 🧬✨** # Updated for deployment
