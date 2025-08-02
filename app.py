@@ -21,47 +21,69 @@ FALLBACK = "G"  # Default to glycine instead of X
 def get_aa_properties(aa: str) -> dict:
     """Get properties for a single amino acid"""
     properties = {
-        'A': {'name': 'Alanine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'R': {'name': 'Arginine', 'polarity': 'Polar', 'charge': 'Positive'},
-        'N': {'name': 'Asparagine', 'polarity': 'Polar', 'charge': 'Neutral'},
-        'D': {'name': 'Aspartic Acid', 'polarity': 'Polar', 'charge': 'Negative'},
-        'C': {'name': 'Cysteine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'E': {'name': 'Glutamic Acid', 'polarity': 'Polar', 'charge': 'Negative'},
-        'Q': {'name': 'Glutamine', 'polarity': 'Polar', 'charge': 'Neutral'},
-        'G': {'name': 'Glycine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'H': {'name': 'Histidine', 'polarity': 'Polar', 'charge': 'Positive'},
-        'I': {'name': 'Isoleucine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'L': {'name': 'Leucine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'K': {'name': 'Lysine', 'polarity': 'Polar', 'charge': 'Positive'},
-        'M': {'name': 'Methionine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'O': {'name': 'Pyrrolysine', 'polarity': 'Polar', 'charge': 'Positive'},
-        'F': {'name': 'Phenylalanine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'P': {'name': 'Proline', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'S': {'name': 'Serine', 'polarity': 'Polar', 'charge': 'Neutral'},
-        'T': {'name': 'Threonine', 'polarity': 'Polar', 'charge': 'Neutral'},
-        'U': {'name': 'Selenocysteine', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'W': {'name': 'Tryptophan', 'polarity': 'Non-polar', 'charge': 'Neutral'},
-        'Y': {'name': 'Tyrosine', 'polarity': 'Polar', 'charge': 'Neutral'},
-        'V': {'name': 'Valine', 'polarity': 'Non-polar', 'charge': 'Neutral'}
+        'A': {'name': 'Alanine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'R': {'name': 'Arginine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
+        'N': {'name': 'Asparagine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
+        'D': {'name': 'Aspartic Acid', 'polarity': 'Polar', 'charge': 'Negative', 'type': 'Acidic'},
+        'C': {'name': 'Cysteine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'E': {'name': 'Glutamic Acid', 'polarity': 'Polar', 'charge': 'Negative', 'type': 'Acidic'},
+        'Q': {'name': 'Glutamine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
+        'G': {'name': 'Glycine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'H': {'name': 'Histidine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
+        'I': {'name': 'Isoleucine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'L': {'name': 'Leucine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'K': {'name': 'Lysine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
+        'M': {'name': 'Methionine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'O': {'name': 'Pyrrolysine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
+        'F': {'name': 'Phenylalanine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'P': {'name': 'Proline', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'S': {'name': 'Serine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
+        'T': {'name': 'Threonine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
+        'U': {'name': 'Selenocysteine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'W': {'name': 'Tryptophan', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
+        'Y': {'name': 'Tyrosine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
+        'V': {'name': 'Valine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'}
     }
-    return properties.get(aa, {'name': 'Unknown', 'polarity': 'Unknown', 'charge': 'Unknown'})
+    return properties.get(aa, {'name': 'Unknown', 'polarity': 'Unknown', 'charge': 'Unknown', 'type': 'Unknown'})
 
 def calculate_peptide_properties(sequence: str) -> dict:
     """Calculate peptide properties using Biopython"""
     try:
         ana = ProteinAnalysis(sequence)
+        
+        # Calculate amino acid type counts
+        hydrophobic = ['A', 'I', 'L', 'M', 'F', 'P', 'V', 'W']
+        hydrophilic = ['N', 'Q', 'S', 'T', 'Y']
+        acidic = ['D', 'E']
+        basic = ['R', 'H', 'K']
+        
+        hydrophobic_count = sum(1 for aa in sequence if aa in hydrophobic)
+        hydrophilic_count = sum(1 for aa in sequence if aa in hydrophilic)
+        acidic_count = sum(1 for aa in sequence if aa in acidic)
+        basic_count = sum(1 for aa in sequence if aa in basic)
+        
         return {
             'molecular_weight': ana.molecular_weight(),
             'isoelectric_point': ana.isoelectric_point(),
             'amino_acid_count': ana.count_amino_acids(),
-            'secondary_structure_fraction': ana.secondary_structure_fraction()
+            'secondary_structure_fraction': ana.secondary_structure_fraction(),
+            'length': len(sequence),
+            'hydrophobic_count': hydrophobic_count,
+            'hydrophilic_count': hydrophilic_count,
+            'acidic_count': acidic_count,
+            'basic_count': basic_count
         }
     except Exception as e:
         return {
             'molecular_weight': 0,
             'isoelectric_point': 0,
             'amino_acid_count': {},
-            'secondary_structure_fraction': (0, 0, 0)
+            'secondary_structure_fraction': (0, 0, 0),
+            'length': len(sequence),
+            'hydrophobic_count': 0,
+            'hydrophilic_count': 0,
+            'acidic_count': 0,
+            'basic_count': 0
         }
 
 def create_molecular_structure_html(sequence: str) -> str:
