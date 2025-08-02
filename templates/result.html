@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peptide Result - {{ raw }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+        .input-text {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 2rem;
+        }
+        .peptide-display {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            border: 2px solid #e9ecef;
+        }
+        .sequence {
+            font-family: 'Courier New', monospace;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 1rem;
+            letter-spacing: 2px;
+        }
+        .sequence sup {
+            font-size: 1rem;
+            color: #666;
+            vertical-align: super;
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+        .stat {
+            background: #667eea;
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .svg-container {
+            margin: 2rem 0;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .download-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 1rem 0.5rem;
+            transition: transform 0.2s ease;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+        }
+        .back-btn {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+            transition: transform 0.2s ease;
+        }
+        .back-btn:hover {
+            transform: translateY(-2px);
+        }
+        .svg-preview {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* 3D Structure Section Styles */
+        .structure-section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .structure-description {
+            color: #666;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+        
+        /* Molecular Analysis Styles */
+        .molecular-section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .molecular-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .molecular-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .molecular-card h4 {
+            margin: 0 0 1rem 0;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .aa-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .aa-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .aa-letter {
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            color: #495057;
+            min-width: 20px;
+        }
+        
+        .aa-name {
+            flex: 1;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .aa-type {
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .aa-type.acidic { background: #ff6b6b; color: white; }
+        .aa-type.basic { background: #4ecdc4; color: white; }
+        .aa-type.polar { background: #45b7d1; color: white; }
+        .aa-type.nonpolar { background: #96ceb4; color: white; }
+        
+        .aa-count {
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .properties-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .property {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .property-label {
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .property-value {
+            color: #666;
+        }
+        
+        /* Biological Information Styles */
+        .biological-section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .bio-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .bio-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .bio-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .bio-text {
+            color: #495057;
+            line-height: 1.5;
+        }
+        
+        /* Peptide Function Search Section Styles */
+        .search-section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .search-description {
+            color: #666;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+        
+        .search-result {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .search-result h4 {
+            margin: 0 0 0.5rem 0;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .result-content {
+            text-align: left;
+            margin-left: 1rem;
+        }
+        
+        .result-text {
+            color: #495057;
+            line-height: 1.6;
+            margin-bottom: 0.5rem;
+        }
+        
+        .result-source {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .suggestions-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+            margin-left: 1rem;
+        }
+        
+        .suggestions-list li {
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .search-note {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e9ecef;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .molecular-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .aa-item {
+                flex-wrap: wrap;
+            }
+            
+            .aa-name {
+                min-width: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h1>🧬 Your Peptide Tag</h1>
+            <a href="/" class="back-btn" style="margin: 0;">← Generate Another</a>
+        </div>
+        <p class="input-text">Generated from: "{{ raw }}"</p>
+        
+        <div class="peptide-display">
+            <div class="sequence">{{ visual_seq | safe }}</div>
+            <div class="stats">
+                <div class="stat">MW: {{ "%.1f"|format(mw) }} Da</div>
+                <div class="stat">pI: {{ "%.2f"|format(pi) }}</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <h3>Visual Tag</h3>
+            <img src="/download-enhanced/{{ enhanced_svg_id }}.svg" alt="Enhanced peptide tag visualization" class="svg-preview">
+            <br>
+            <a href="/download/{{ svg_id }}.svg" class="download-btn">📥 Download Basic SVG</a>
+            <a href="/download-enhanced/{{ enhanced_svg_id }}.svg" class="download-btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">🧬 Download Enhanced SVG</a>
+        </div>
+        
+        <!-- 2D Molecular Structure Section -->
+        <div class="structure-section">
+            <h3>🧪 2D Molecular Structure (Atoms & Bonds)</h3>
+            <p class="structure-description">
+                Actual molecular structure showing atoms, bonds, and functional groups.
+            </p>
+            {{ molecular_structure_html | safe }}
+        </div>
+        
+        <!-- Molecular Structure Section -->
+        <div class="molecular-section">
+            <h3>🧬 Molecular Analysis</h3>
+            <div class="molecular-grid">
+                <div class="molecular-card">
+                    <h4>Amino Acid Composition</h4>
+                    <div class="aa-list">
+                        {% for aa, data in protein_info.amino_acids.items() %}
+                        <div class="aa-item">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+                                <span class="aa-letter">{{ aa }}</span>
+                                <span class="aa-name">{{ data.properties.name }}</span>
+                                <span class="aa-type {{ data.properties.type.lower().replace('-', '') }}">{{ data.properties.type }}</span>
+                                <span class="aa-count">×{{ data.count }}</span>
+                            </div>
+                            {% if data.molecular_structure %}
+                            <div style="margin-top: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; text-align: center;">
+                                <small style="color: #666; display: block; margin-bottom: 0.25rem;">Molecular Structure:</small>
+                                {{ data.molecular_structure | safe }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="molecular-card">
+                    <h4>Peptide Properties</h4>
+                    <div class="properties-list">
+                        <div class="property">
+                            <span class="property-label">Length:</span>
+                            <span class="property-value">{{ protein_info.properties.length }} amino acids</span>
+                        </div>
+                        <div class="property">
+                            <span class="property-label">Hydrophobic:</span>
+                            <span class="property-value">{{ protein_info.properties.hydrophobic_count }}</span>
+                        </div>
+                        <div class="property">
+                            <span class="property-label">Hydrophilic:</span>
+                            <span class="property-value">{{ protein_info.properties.hydrophilic_count }}</span>
+                        </div>
+                        <div class="property">
+                            <span class="property-label">Acidic:</span>
+                            <span class="property-value">{{ protein_info.properties.acidic_count }}</span>
+                        </div>
+                        <div class="property">
+                            <span class="property-label">Basic:</span>
+                            <span class="property-value">{{ protein_info.properties.basic_count }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Biological Information Section -->
+        <div class="biological-section">
+            <h3>🔬 Biological Insights</h3>
+            <div class="bio-info">
+                {% for info in protein_info.biological_info %}
+                <div class="bio-item">
+                    <span class="bio-icon">💡</span>
+                    <span class="bio-text">{{ info }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Peptide Function Search Section -->
+        <div class="search-section">
+            <h3>🔍 Peptide Function Research</h3>
+            <p class="search-description">
+                Insights about your peptide's potential functions in the human body and nature.
+            </p>
+            
+            {% if search_results.therapeutic_applications %}
+            <div class="search-result">
+                <h4>💊 Therapeutic Applications</h4>
+                <div class="result-content">
+                    {% for app in search_results.therapeutic_applications %}
+                    <div style="margin-bottom: 1rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px;">
+                        <p class="result-text"><strong>Search:</strong> {{ app.query }}</p>
+                        <p class="result-text">{{ app.abstract }}</p>
+                        <p class="result-source">
+                            Source: <a href="{{ app.url }}" target="_blank">{{ app.source }}</a>
+                        </p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if search_results.biological_pathways %}
+            <div class="search-result">
+                <h4>🧬 Biological Pathways</h4>
+                <div class="result-content">
+                    {% for pathway in search_results.biological_pathways %}
+                    <div style="margin-bottom: 1rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px;">
+                        <p class="result-text"><strong>Search:</strong> {{ pathway.query }}</p>
+                        <p class="result-text">{{ pathway.abstract }}</p>
+                        <p class="result-source">
+                            Source: <a href="{{ pathway.url }}" target="_blank">{{ pathway.source }}</a>
+                        </p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if search_results.similar_peptides %}
+            <div class="search-result">
+                <h4>🔬 Similar Known Peptides</h4>
+                <div class="result-content">
+                    {% for peptide in search_results.similar_peptides %}
+                    <div style="margin-bottom: 1rem; padding: 1rem; background: #e8f4fd; border-radius: 8px; border-left: 4px solid #007bff;">
+                        <h5 style="margin: 0 0 0.5rem 0; color: #007bff;">{{ peptide.name }}</h5>
+                        <p class="result-text">{{ peptide.description }}</p>
+                        
+                        <div style="margin-top: 0.5rem;">
+                            <strong style="color: #28a745;">Therapeutic Applications:</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                {% for app in peptide.applications %}
+                                <li>{{ app }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div style="margin-top: 0.5rem;">
+                            <strong style="color: #dc3545;">Biological Pathways:</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                {% for pathway in peptide.pathways %}
+                                <li>{{ pathway }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if search_results.found_info %}
+            <div class="search-result">
+                <h4>📚 Found Information</h4>
+                <div class="result-content">
+                    <p class="result-text">{{ search_results.abstract }}</p>
+                    <p class="result-source">
+                        Source: <a href="{{ search_results.url }}" target="_blank">{{ search_results.source }}</a>
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if search_results.general_info %}
+            <div class="search-result">
+                <h4>🧬 Scientific Insights</h4>
+                <div class="result-content">
+                    <p class="result-text">{{ search_results.general_info }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if search_results.suggestions %}
+            <div class="search-result">
+                <h4>🔗 Related Topics</h4>
+                <div class="result-content">
+                    <ul class="suggestions-list">
+                        {% for suggestion in search_results.suggestions %}
+                        <li>{{ suggestion }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="search-note">
+                <p>💡 <em>These insights are based on peptide properties, web search results, and comparison to known therapeutic peptides. 
+                For specific medical or research applications, consult scientific literature.</em></p>
+            </div>
+        </div>
+        
+        <a href="/" class="back-btn">← Generate Another</a>
+        
+        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e9ecef; color: #666; font-size: 0.9rem;">
+            Made by: <a href="https://robin-gustafsson.com/" target="_blank" style="color: #007bff; text-decoration: none;">@https://robin-gustafsson.com/</a>
+        </div>
+    </div>
+    
+    <script>
+        function copySmiles(smiles) {
+            navigator.clipboard.writeText(smiles).then(function() {
+                // Show a brief notification
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.style.background = '#6c757d';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Could not copy text: ', err);
+                alert('SMILES: ' + smiles);
+            });
+        }
+    </script>
+</body>
+</html>
+
