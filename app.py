@@ -323,7 +323,7 @@ def index():
                 'count': 0,
                 'positions': [],
                 'properties': get_aa_properties(aa),
-                'molecular_structure': f'<iframe src="https://molview.org/?q={aa_smiles.get(aa, "NCC(=O)O")}" width="150" height="100" style="border: 1px solid #ddd; border-radius: 4px;" title="{aa} structure"></iframe>'
+                'molecular_structure': f'<iframe src="https://molview.org/?q={peptide_to_smiles(aa)}" width="150" height="100" style="border: 1px solid #ddd; border-radius: 4px;" title="{aa} structure"></iframe>'
             }
             protein_info['amino_acids'][aa]['count'] += 1
             protein_info['amino_acids'][aa]['positions'].append(i + 1)
