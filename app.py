@@ -86,8 +86,61 @@ def calculate_peptide_properties(sequence: str) -> dict:
             'basic_count': 0
         }
 
+def peptide_to_smiles(sequence: str) -> str:
+    """Convert peptide sequence to SMILES notation"""
+    # Simple SMILES generation for peptides
+    # Each amino acid gets a basic SMILES representation
+    aa_smiles = {
+        'A': 'NC(C)C(=O)O',  # Alanine
+        'R': 'NC(CCCNC(=N)N)C(=O)O',  # Arginine
+        'N': 'NC(CC(=O)N)C(=O)O',  # Asparagine
+        'D': 'NC(CC(=O)O)C(=O)O',  # Aspartic acid
+        'C': 'NC(CS)C(=O)O',  # Cysteine
+        'E': 'NC(CCC(=O)O)C(=O)O',  # Glutamic acid
+        'Q': 'NC(CCCN)C(=O)O',  # Glutamine
+        'G': 'NCC(=O)O',  # Glycine
+        'H': 'NC(CC1=CNC=N1)C(=O)O',  # Histidine
+        'I': 'NC(CCC(C)C)C(=O)O',  # Isoleucine
+        'L': 'NC(CC(C)C)C(=O)O',  # Leucine
+        'K': 'NC(CCCCN)C(=O)O',  # Lysine
+        'M': 'NC(CCSC)C(=O)O',  # Methionine
+        'O': 'NC(CCCNC(=N)N)C(=O)O',  # Pyrrolysine
+        'F': 'NC(CC1=CC=CC=C1)C(=O)O',  # Phenylalanine
+        'P': 'NC1CCNC1C(=O)O',  # Proline
+        'S': 'NC(CO)C(=O)O',  # Serine
+        'T': 'NC(C(C)O)C(=O)O',  # Threonine
+        'U': 'NC(CS)C(=O)O',  # Selenocysteine
+        'W': 'NC(CC1=CC2=CC=CC=C2NC1)C(=O)O',  # Tryptophan
+        'Y': 'NC(CC1=CC=C(O)C=C1)C(=O)O',  # Tyrosine
+        'V': 'NC(C(C)C)C(=O)O'  # Valine
+    }
+    
+    # Build peptide SMILES
+    if len(sequence) == 1:
+        # Single amino acid
+        return aa_smiles.get(sequence, 'NCC(=O)O')
+    else:
+        # Multiple amino acids - create peptide chain
+        smiles_parts = []
+        for i, aa in enumerate(sequence):
+            if i == 0:
+                # N-terminus
+                smiles_parts.append(f"NC({aa_smiles.get(aa, 'CC(=O)O')[2:]}")  # Remove NC from middle
+            elif i == len(sequence) - 1:
+                # C-terminus
+                smiles_parts.append(f"C({aa_smiles.get(aa, 'CC(=O)O')[2:]}")  # Remove NC from middle
+            else:
+                # Middle amino acids
+                smiles_parts.append(f"C({aa_smiles.get(aa, 'CC(=O)O')[2:]}")  # Remove NC from middle
+        
+        return ''.join(smiles_parts) + "O"
+
 def create_molecular_structure_html(sequence: str) -> str:
-    """Create HTML for molecular structure (simplified version)"""
+    """Create HTML for molecular structure with 2D visualizations"""
+    
+    # Generate SMILES for the peptide
+    smiles = peptide_to_smiles(sequence)
+    
     html = f"""
     <div class="molecular-structure">
         <h3>🧬 Molecular Structure</h3>
@@ -96,9 +149,28 @@ def create_molecular_structure_html(sequence: str) -> str:
             <p><strong>Length:</strong> {len(sequence)} amino acids</p>
             <p><strong>Molecular Formula:</strong> C<sub>{len(sequence)*3}</sub>H<sub>{len(sequence)*7}</sub>N<sub>{len(sequence)}</sub>O<sub>{len(sequence)+1}</sub></p>
         </div>
+        
+        <div class="structure-visualization">
+            <h4>2D Molecular Structure</h4>
+            <div style="text-align: center; margin: 1rem 0;">
+                <iframe 
+                    src="https://molview.org/?q={smiles}" 
+                    width="100%" 
+                    height="400px" 
+                    style="border: 1px solid #ddd; border-radius: 8px;"
+                    title="2D Molecular Structure">
+                </iframe>
+            </div>
+            <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                <p><strong>SMILES:</strong> <code>{smiles}</code></p>
+                <button onclick="copySmiles('{smiles}')" style="background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
+                    📋 Copy SMILES
+                </button>
+            </div>
+        </div>
+        
         <div class="structure-note">
-            <p><em>Note: Full 2D molecular visualization requires RDKit with X11 libraries. 
-            This simplified version shows the peptide structure information.</em></p>
+            <p><em>Interactive 2D molecular structure powered by MolView. You can rotate, zoom, and explore the molecule.</em></p>
         </div>
     </div>
     """
@@ -232,12 +304,12 @@ def index():
         # Analyze each amino acid in the sequence
         for i, aa in enumerate(seq):
             if aa not in protein_info['amino_acids']:
-                protein_info['amino_acids'][aa] = {
-                    'count': 0,
-                    'positions': [],
-                    'properties': get_aa_properties(aa),
-                    'molecular_structure': None  # Simplified version doesn't have 2D structures
-                }
+                            protein_info['amino_acids'][aa] = {
+                'count': 0,
+                'positions': [],
+                'properties': get_aa_properties(aa),
+                'molecular_structure': f'<iframe src="https://molview.org/?q={peptide_to_smiles(aa)}" width="150" height="100" style="border: 1px solid #ddd; border-radius: 4px;" title="{aa} structure"></iframe>'
+            }
             protein_info['amino_acids'][aa]['count'] += 1
             protein_info['amino_acids'][aa]['positions'].append(i + 1)
         
