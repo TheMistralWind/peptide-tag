@@ -167,25 +167,27 @@ def create_molecular_structure_html(sequence: str) -> str:
         
         <div class="structure-visualization">
             <h4>2D Molecular Structure</h4>
-            <div style="text-align: center; margin: 1rem 0;">
-                <iframe 
-                    src="https://molview.org/?q={smiles}" 
-                    width="100%" 
-                    height="400px" 
-                    style="border: 1px solid #ddd; border-radius: 8px;"
-                    title="2D Molecular Structure">
-                </iframe>
+            <div style="text-align: center; margin: 1rem 0; padding: 2rem; background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🧬</div>
+                <p><strong>Molecular Structure Visualization</strong></p>
+                <p style="color: #666; margin-top: 0.5rem;">Interactive 2D molecular structure</p>
+                <div style="margin-top: 1rem;">
+                    <a href="https://molview.org/?q={smiles}" target="_blank" 
+                       style="background: #007bff; color: white; padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 4px; display: inline-block;">
+                        🔬 View in MolView
+                    </a>
+                </div>
             </div>
             <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
                 <p><strong>SMILES:</strong> <code>{smiles}</code></p>
-                <button onclick="copySmiles('{smiles}')" style="background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
+                <button onclick="copySmiles('{smiles}')" style="background: #6c757d; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
                     📋 Copy SMILES
                 </button>
             </div>
         </div>
         
         <div class="structure-note">
-            <p><em>Interactive 2D molecular structure powered by MolView. You can rotate, zoom, and explore the molecule.</em></p>
+            <p><em>Click "View in MolView" to see the interactive 2D molecular structure in a new tab.</em></p>
         </div>
     </div>
     """
@@ -323,7 +325,7 @@ def index():
                 'count': 0,
                 'positions': [],
                 'properties': get_aa_properties(aa),
-                'molecular_structure': f'<iframe src="https://molview.org/?q={peptide_to_smiles(aa)}" width="150" height="100" style="border: 1px solid #ddd; border-radius: 4px;" title="{aa} structure"></iframe>'
+                'molecular_structure': f'<a href="https://molview.org/?q={peptide_to_smiles(aa)}" target="_blank" style="display: inline-block; padding: 0.5rem; background: #007bff; color: white; text-decoration: none; border-radius: 4px; font-size: 0.8rem;">🔬 View {aa}</a>'
             }
             protein_info['amino_acids'][aa]['count'] += 1
             protein_info['amino_acids'][aa]['positions'].append(i + 1)
