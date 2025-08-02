@@ -167,14 +167,14 @@ def create_molecular_structure_html(sequence: str) -> str:
         
         <div class="structure-visualization">
             <h4>2D Molecular Structure</h4>
-            <div style="text-align: center; margin: 1rem 0; padding: 2rem; background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd;">
-                <div style="font-size: 3rem; margin-bottom: 1rem;">🧬</div>
-                <p><strong>Molecular Structure Visualization</strong></p>
-                <p style="color: #666; margin-top: 0.5rem;">Interactive 2D molecular structure</p>
-                <div style="margin-top: 1rem;">
+            <div style="text-align: center; margin: 1rem 0; padding: 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; border: 1px solid #ddd; color: white;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🧬</div>
+                <h3 style="margin-bottom: 0.5rem; color: white;">See what your name looks like as a protein!</h3>
+                <p style="color: #f0f0f0; margin-top: 0.5rem; font-size: 1.1rem;">Interactive 2D molecular structure</p>
+                <div style="margin-top: 1.5rem;">
                     <a href="https://molview.org/?q={smiles}" target="_blank" 
-                       style="background: #007bff; color: white; padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 4px; display: inline-block;">
-                        🔬 View in MolView
+                       style="background: white; color: #667eea; padding: 1rem 2rem; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                        🔬 View Your Protein in 3D
                     </a>
                 </div>
             </div>
@@ -194,15 +194,83 @@ def create_molecular_structure_html(sequence: str) -> str:
     return html
 
 def search_peptide_function(sequence: str) -> dict:
-    """Search for peptide function information (simplified)"""
+    """Search for peptide function information with improved insights"""
+    
+    # Analyze peptide characteristics
+    aa_count = len(sequence)
+    hydrophobic_aa = ['A', 'I', 'L', 'M', 'F', 'P', 'V', 'W']
+    hydrophilic_aa = ['N', 'Q', 'S', 'T', 'Y']
+    acidic_aa = ['D', 'E']
+    basic_aa = ['R', 'H', 'K']
+    
+    hydrophobic_count = sum(1 for aa in sequence if aa in hydrophobic_aa)
+    hydrophilic_count = sum(1 for aa in sequence if aa in hydrophilic_aa)
+    acidic_count = sum(1 for aa in sequence if aa in acidic_aa)
+    basic_count = sum(1 for aa in sequence if aa in basic_aa)
+    
+    # Determine peptide characteristics
+    is_hydrophobic = hydrophobic_count > hydrophilic_count
+    is_charged = acidic_count > 0 or basic_count > 0
+    is_short = aa_count <= 10
+    is_long = aa_count > 20
+    
+    # Generate insights based on characteristics
+    insights = []
+    
+    if is_short:
+        insights.append(f"This {aa_count}-amino acid peptide is short and may act as a signaling molecule")
+        insights.append("Short peptides often function as hormones, neurotransmitters, or enzyme inhibitors")
+    elif is_long:
+        insights.append(f"This {aa_count}-amino acid peptide is long and may have structural or enzymatic functions")
+        insights.append("Long peptides can form protein domains with specific biological activities")
+    else:
+        insights.append(f"This {aa_count}-amino acid peptide has moderate length suitable for various functions")
+    
+    if is_hydrophobic:
+        insights.append("High hydrophobic content suggests membrane interaction potential")
+        insights.append("May function as a membrane protein or lipid-binding peptide")
+    else:
+        insights.append("High hydrophilic content suggests water-soluble protein function")
+        insights.append("May function as a signaling molecule or enzyme")
+    
+    if is_charged:
+        if basic_count > acidic_count:
+            insights.append("Net positive charge suggests DNA/RNA binding potential")
+            insights.append("May function as a transcription factor or nucleic acid binding protein")
+        else:
+            insights.append("Net negative charge suggests metal ion binding potential")
+            insights.append("May function as a metalloprotein or enzyme cofactor")
+    
+    # Add specific amino acid insights
+    if 'R' in sequence or 'K' in sequence:
+        insights.append("Contains basic amino acids - may interact with nucleic acids or membranes")
+    if 'D' in sequence or 'E' in sequence:
+        insights.append("Contains acidic amino acids - may bind metal ions or participate in catalysis")
+    if 'C' in sequence:
+        insights.append("Contains cysteine - may form disulfide bonds for structural stability")
+    if 'P' in sequence:
+        insights.append("Contains proline - may introduce structural bends or rigidity")
+    
+    # Predict function based on composition
+    if hydrophobic_count > aa_count * 0.6:
+        function_prediction = "Membrane protein or lipid-binding peptide"
+    elif basic_count > 0 and basic_count > acidic_count:
+        function_prediction = "DNA/RNA binding protein or transcription factor"
+    elif acidic_count > 0 and acidic_count > basic_count:
+        function_prediction = "Metalloprotein or enzyme"
+    elif 'C' in sequence:
+        function_prediction = "Structural protein with disulfide bonds"
+    else:
+        function_prediction = "Signaling molecule or enzyme"
+    
     return {
         'found_info': True,
         'ai_analysis': {
-            'predicted_function': 'Peptide sequence analysis',
-            'confidence': 'High',
-            'therapeutic_potential': 'Moderate',
-            'biological_pathways': ['Protein synthesis', 'Cellular processes'],
-            'structural_features': ['Linear peptide', f'{len(sequence)} amino acids']
+            'predicted_function': function_prediction,
+            'confidence': 'High' if aa_count <= 20 else 'Moderate',
+            'therapeutic_potential': 'High' if is_short else 'Moderate',
+            'biological_pathways': ['Protein synthesis', 'Cellular signaling', 'Metabolic regulation'],
+            'structural_features': [f'{aa_count} amino acids', 'Linear peptide', 'Natural sequence']
         },
         'known_peptides': {
             'found': False,
@@ -212,10 +280,22 @@ def search_peptide_function(sequence: str) -> dict:
             'found': False,
             'message': 'PubMed search not available in simplified version'
         },
-        'general_insights': [
-            f'This {len(sequence)}-amino acid peptide has potential biological activity',
-            'Sequence analysis suggests moderate stability',
-            'Consider experimental validation for specific functions'
+        'general_insights': insights,
+        'therapeutic_applications': [
+            {
+                'query': f"{sequence} peptide therapeutic applications",
+                'abstract': f"Analysis suggests this {aa_count}-amino acid peptide has {function_prediction.lower()} potential with {len(insights)} key biological characteristics.",
+                'source': 'AI Analysis',
+                'url': '#'
+            }
+        ],
+        'biological_pathways': [
+            {
+                'query': f"{sequence} biological pathways",
+                'abstract': f"This peptide likely participates in cellular signaling and metabolic regulation pathways based on its {aa_count} amino acid composition.",
+                'source': 'AI Analysis',
+                'url': '#'
+            }
         ]
     }
 
@@ -287,9 +367,7 @@ def make_svg(seq: str, original_text: str, mw: float, pi: float) -> bytes:
     dwg.add(dwg.text(f"Isoelectric Point: {pi:.1f}", insert=('50%', '140px'), text_anchor='middle',
                    font_family='Arial, sans-serif', font_size='12px', fill='#666'))
     
-    # Made by
-    dwg.add(dwg.text("Made by: @https://robin-gustafsson.com/", insert=('50%', '280px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='10px', fill='#999'))
+    # No attribution needed
     
     return dwg.tostring().encode()
 
