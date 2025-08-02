@@ -1,0 +1,6 @@
+body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;
+    align-items:center;margin:2rem;}
+input{padding:0.4rem 0.6rem;font-size:1rem;}
+button{padding:0.45rem 0.8rem;font-size:1rem;cursor:pointer;}
+.card{margin:1.2rem 0;}
+.foot{font-size:0.8rem;color:#666;margin-top:1rem;}

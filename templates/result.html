@@ -113,7 +113,7 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         
-        /* 3D Structure Section Styles */
+        /* 2D Molecular Structure Section Styles */
         .structure-section {
             margin: 2rem 0;
             padding: 1.5rem;
@@ -126,6 +126,48 @@
             color: #666;
             margin-bottom: 1rem;
             font-style: italic;
+        }
+        
+        .molecular-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+        
+        .molecular-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .molecular-card h4 {
+            margin: 0 0 1rem 0;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .molecular-structure {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+        
+        .structure-visualization {
+            text-align: center;
+            margin: 1rem 0;
+        }
+        
+        .structure-note {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #666;
         }
         
         /* Molecular Analysis Styles */
@@ -330,7 +372,7 @@
         
         /* Responsive Design */
         @media (max-width: 768px) {
-            .molecular-grid {
+            .molecular-grid, .molecular-info {
                 grid-template-columns: 1fr;
             }
             
@@ -360,24 +402,54 @@
             </div>
         </div>
         
-        <div class="svg-container">
-            <h3>Visual Tag</h3>
-            <img src="/download-enhanced/{{ enhanced_svg_id }}.svg" alt="Enhanced peptide tag visualization" class="svg-preview">
-            <br>
-            <a href="/download/{{ svg_id }}.svg" class="download-btn">📥 Download Basic SVG</a>
-            <a href="/download-enhanced/{{ enhanced_svg_id }}.svg" class="download-btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">🧬 Download Enhanced SVG</a>
-        </div>
-        
-        <!-- 2D Molecular Structure Section -->
+        <!-- 2D Molecular Structure Section - MOVED ABOVE VISUAL TAG -->
         <div class="structure-section">
             <h3>🧪 2D Molecular Structure (Atoms & Bonds)</h3>
             <p class="structure-description">
                 Actual molecular structure showing atoms, bonds, and functional groups.
             </p>
-            {{ molecular_structure_html | safe }}
+            
+            <div class="molecular-info">
+                <div class="molecular-card">
+                    <h4>🧬 Molecular Structure</h4>
+                    <p><strong>Sequence:</strong> {{ seq }}</p>
+                    <p><strong>Length:</strong> {{ protein_info.properties.length }} amino acids</p>
+                    <p><strong>Molecular Formula:</strong> C<sub>{{ protein_info.properties.length * 3 }}</sub>H<sub>{{ protein_info.properties.length * 7 }}</sub>N<sub>{{ protein_info.properties.length }}</sub>O<sub>{{ protein_info.properties.length + 1 }}</sub></p>
+                </div>
+                
+                <div class="molecular-card">
+                    <h4>🔬 2D Molecular Structure</h4>
+                    <div class="molecular-structure">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🧬</div>
+                        <h3 style="margin-bottom: 0.5rem; color: white;">See what your name looks like as a protein!</h3>
+                        <p style="color: #f0f0f0; margin-top: 0.5rem; font-size: 1.1rem;">Interactive 2D molecular structure</p>
+                        <div style="margin-top: 1.5rem;">
+                            <a href="https://molview.org/?q={{ protein_info.smiles }}" target="_blank" 
+                               style="background: white; color: #667eea; padding: 1rem 2rem; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                                🔬 View Your Protein in 3D
+                            </a>
+                        </div>
+                    </div>
+                    <div class="structure-note">
+                        <p><strong>SMILES:</strong> <code>{{ protein_info.smiles }}</code></p>
+                        <button onclick="copySmiles('{{ protein_info.smiles }}')" style="background: #6c757d; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
+                            📋 Copy SMILES
+                        </button>
+                        <p style="margin-top: 1rem; font-size: 0.9rem; color: #666;"><em>Click "View in MolView" to see the interactive 2D molecular structure in a new tab.</em></p>
+                    </div>
+                </div>
+            </div>
         </div>
         
-        <!-- Molecular Structure Section -->
+        <!-- Visual Tag Section - NOW BELOW MOLECULAR STRUCTURE -->
+        <div class="svg-container">
+            <h3>Visual Tag</h3>
+            <img src="/download/{{ svg_id }}.svg" alt="Peptide tag visualization" class="svg-preview">
+            <br>
+            <a href="/download/{{ svg_id }}.svg" class="download-btn">📥 Download SVG</a>
+        </div>
+        
+        <!-- Molecular Analysis Section -->
         <div class="molecular-section">
             <h3>🧬 Molecular Analysis</h3>
             <div class="molecular-grid">
