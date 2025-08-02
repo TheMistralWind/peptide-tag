@@ -88,36 +88,65 @@ def calculate_peptide_properties(sequence: str) -> dict:
 
 def peptide_to_smiles(sequence: str) -> str:
     """Convert peptide sequence to SMILES notation"""
-    # Amino acid SMILES representations
+    # Amino acid SMILES representations (side chains only, without N and C termini)
     aa_smiles = {
-        'A': 'NC(C)C(=O)O',  # Alanine
-        'R': 'NC(CCCNC(=N)N)C(=O)O',  # Arginine
-        'N': 'NC(CC(=O)N)C(=O)O',  # Asparagine
-        'D': 'NC(CC(=O)O)C(=O)O',  # Aspartic acid
-        'C': 'NC(CS)C(=O)O',  # Cysteine
-        'E': 'NC(CCC(=O)O)C(=O)O',  # Glutamic acid
-        'Q': 'NC(CCCN)C(=O)O',  # Glutamine
-        'G': 'NCC(=O)O',  # Glycine
-        'H': 'NC(CC1=CNC=N1)C(=O)O',  # Histidine
-        'I': 'NC(CCC(C)C)C(=O)O',  # Isoleucine
-        'L': 'NC(CC(C)C)C(=O)O',  # Leucine
-        'K': 'NC(CCCCN)C(=O)O',  # Lysine
-        'M': 'NC(CCSC)C(=O)O',  # Methionine
-        'O': 'NC(CCCNC(=N)N)C(=O)O',  # Pyrrolysine
-        'F': 'NC(CC1=CC=CC=C1)C(=O)O',  # Phenylalanine
-        'P': 'NC1CCNC1C(=O)O',  # Proline
-        'S': 'NC(CO)C(=O)O',  # Serine
-        'T': 'NC(C(C)O)C(=O)O',  # Threonine
-        'U': 'NC(CS)C(=O)O',  # Selenocysteine
-        'W': 'NC(CC1=CC2=CC=CC=C2NC1)C(=O)O',  # Tryptophan
-        'Y': 'NC(CC1=CC=C(O)C=C1)C(=O)O',  # Tyrosine
-        'V': 'NC(C(C)C)C(=O)O'  # Valine
+        'A': 'C(C)',  # Alanine
+        'R': 'C(CCCNC(=N)N)',  # Arginine
+        'N': 'C(CC(=O)N)',  # Asparagine
+        'D': 'C(CC(=O)O)',  # Aspartic acid
+        'C': 'C(CS)',  # Cysteine
+        'E': 'C(CCC(=O)O)',  # Glutamic acid
+        'Q': 'C(CCCN)',  # Glutamine
+        'G': '',  # Glycine (no side chain)
+        'H': 'C(CC1=CNC=N1)',  # Histidine
+        'I': 'C(CCC(C)C)',  # Isoleucine
+        'L': 'C(CC(C)C)',  # Leucine
+        'K': 'C(CCCCN)',  # Lysine
+        'M': 'C(CCSC)',  # Methionine
+        'O': 'C(CCCNC(=N)N)',  # Pyrrolysine
+        'F': 'C(CC1=CC=CC=C1)',  # Phenylalanine
+        'P': 'C1CCNC1',  # Proline
+        'S': 'C(CO)',  # Serine
+        'T': 'C(C(C)O)',  # Threonine
+        'U': 'C(CS)',  # Selenocysteine
+        'W': 'C(CC1=CC2=CC=CC=C2NC1)',  # Tryptophan
+        'Y': 'C(CC1=CC=C(O)C=C1)',  # Tyrosine
+        'V': 'C(C(C)C)'  # Valine
     }
     
-    # For simplicity, use the first amino acid's SMILES
-    if sequence:
-        return aa_smiles.get(sequence[0], 'NCC(=O)O')
-    return 'NCC(=O)O'
+    if not sequence:
+        return 'NCC(=O)O'  # Default glycine
+    
+    # Build peptide SMILES by connecting amino acids with peptide bonds
+    smiles_parts = []
+    
+    for i, aa in enumerate(sequence):
+        if aa not in aa_smiles:
+            aa = 'G'  # Default to glycine if unknown amino acid
+        
+        side_chain = aa_smiles[aa]
+        
+        if i == 0:
+            # First amino acid: start with N-terminus
+            if side_chain:
+                smiles_parts.append(f'NC({side_chain})C(=O)')
+            else:
+                smiles_parts.append('NCC(=O)')
+        else:
+            # Middle amino acids: connect with peptide bond
+            if side_chain:
+                smiles_parts.append(f'NC({side_chain})C(=O)')
+            else:
+                smiles_parts.append('NCC(=O)')
+    
+    # Add C-terminus to the last amino acid
+    if smiles_parts:
+        smiles_parts[-1] = smiles_parts[-1] + 'O'
+    
+    # Join all parts
+    peptide_smiles = ''.join(smiles_parts)
+    
+    return peptide_smiles
 
 def search_peptide_function_improved(sequence: str) -> dict:
     """Enhanced search for peptide function information with better API integration"""
