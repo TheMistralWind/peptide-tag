@@ -317,7 +317,7 @@ def index():
         search_results = search_peptide_function(seq)
         
         return render_template("result.html", seq=seq, visual_seq=visual_seq, mw=mw, pi=pi,
-                               svg_id=svg_id, raw=raw, protein_info=protein_info, structure_html=structure_html,
+                               svg_id=svg_id, raw=raw, protein_info=protein_info, molecular_structure_html=structure_html,
                                search_results=search_results)
     return render_template("index.html")
 
@@ -328,6 +328,15 @@ def download_svg(svg_id):
         return "File expired", 404
     return send_file(BytesIO(svg_bytes), mimetype="image/svg+xml",
                      download_name=f"peptide_{svg_id}.svg", as_attachment=True)
+
+@app.route("/download-enhanced/<enhanced_svg_id>.svg")
+def download_enhanced_svg(enhanced_svg_id):
+    # For now, return the same as regular SVG since we don't have enhanced version
+    svg_bytes = app.config["SVGS"].get(enhanced_svg_id)
+    if not svg_bytes:
+        return "File expired", 404
+    return send_file(BytesIO(svg_bytes), mimetype="image/svg+xml",
+                     download_name=f"peptide_enhanced_{enhanced_svg_id}.svg", as_attachment=True)
 
 if __name__ == "__main__":
     # Get port from environment variable (for deployment platforms)
