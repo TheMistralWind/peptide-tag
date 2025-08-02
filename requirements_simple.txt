@@ -1,4 +1,0 @@
-flask==3.0.0
-biopython==1.81
-svgwrite==1.4.3
-requests==2.31.0 
