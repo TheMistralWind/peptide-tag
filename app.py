@@ -199,11 +199,31 @@ def index():
         # Generate structure HTML
         structure_html = create_molecular_structure_html(seq)
         
+        # Generate protein info
+        protein_info = {
+            'amino_acids': {},
+            'properties': calculate_peptide_properties(seq),
+            'structure_url': None,
+            'biological_info': []
+        }
+        
+        # Analyze each amino acid in the sequence
+        for i, aa in enumerate(seq):
+            if aa not in protein_info['amino_acids']:
+                protein_info['amino_acids'][aa] = {
+                    'count': 0,
+                    'positions': [],
+                    'properties': get_aa_properties(aa),
+                    'molecular_structure': None  # Simplified version doesn't have 2D structures
+                }
+            protein_info['amino_acids'][aa]['count'] += 1
+            protein_info['amino_acids'][aa]['positions'].append(i + 1)
+        
         # Search for peptide function information
         search_results = search_peptide_function(seq)
         
         return render_template("result.html", seq=seq, visual_seq=visual_seq, mw=mw, pi=pi,
-                               svg_id=svg_id, raw=raw, structure_html=structure_html,
+                               svg_id=svg_id, raw=raw, protein_info=protein_info, structure_html=structure_html,
                                search_results=search_results)
     return render_template("index.html")
 
