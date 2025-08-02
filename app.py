@@ -302,7 +302,7 @@ def create_svg_visual_sequence(text: str) -> str:
 
 def make_svg(seq: str, original_text: str, mw: float, pi: float, protein_info: dict) -> bytes:
     """Create simple SVG peptide tag"""
-    dwg = svgwrite.Drawing(size=('500px', '300px'))
+    dwg = svgwrite.Drawing(size=('500px', '350px'))
     
     # Background
     dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'),
@@ -320,11 +320,17 @@ def make_svg(seq: str, original_text: str, mw: float, pi: float, protein_info: d
     dwg.add(dwg.text(f"Sequence: {seq}", insert=('50%', '120px'), text_anchor='middle',
                    font_family='Arial, sans-serif', font_size='18px', fill='#333'))
     
-    # Basic molecular information
-    dwg.add(dwg.text(f"Molecular Weight: {mw:.1f} Da", insert=('50%', '160px'), text_anchor='middle',
+    # Molecular formula
+    length = protein_info['properties']['length']
+    molecular_formula = f"C{length * 3}H{length * 7}N{length}O{length + 1}"
+    dwg.add(dwg.text(f"Molecular Formula: {molecular_formula}", insert=('50%', '160px'), text_anchor='middle',
                    font_family='Arial, sans-serif', font_size='14px', fill='#666'))
     
-    dwg.add(dwg.text(f"Isoelectric Point: {pi:.2f}", insert=('50%', '190px'), text_anchor='middle',
+    # Basic molecular information
+    dwg.add(dwg.text(f"Molecular Weight: {mw:.1f} Da", insert=('50%', '190px'), text_anchor='middle',
+                   font_family='Arial, sans-serif', font_size='14px', fill='#666'))
+    
+    dwg.add(dwg.text(f"Isoelectric Point: {pi:.2f}", insert=('50%', '220px'), text_anchor='middle',
                    font_family='Arial, sans-serif', font_size='14px', fill='#666'))
     
     return dwg.tostring().encode()
