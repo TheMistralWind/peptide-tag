@@ -46,6 +46,79 @@ def get_aa_properties(aa: str) -> dict:
     }
     return properties.get(aa, {'name': 'Unknown', 'polarity': 'Unknown', 'charge': 'Unknown', 'type': 'Unknown'})
 
+def calculate_molecular_formula(sequence: str) -> str:
+    """Calculate the actual molecular formula by counting atoms from each amino acid"""
+    # Atom counts for each amino acid (C, H, N, O, S)
+    aa_atoms = {
+        'A': (3, 7, 1, 2, 0),  # Alanine: C3H7NO2
+        'R': (6, 14, 4, 2, 0),  # Arginine: C6H14N4O2
+        'N': (4, 8, 2, 3, 0),   # Asparagine: C4H8N2O3
+        'D': (4, 7, 1, 4, 0),   # Aspartic acid: C4H7NO4
+        'C': (3, 7, 1, 2, 1),   # Cysteine: C3H7NO2S
+        'E': (5, 9, 1, 4, 0),   # Glutamic acid: C5H9NO4
+        'Q': (5, 10, 2, 3, 0),  # Glutamine: C5H10N2O3
+        'G': (2, 5, 1, 2, 0),   # Glycine: C2H5NO2
+        'H': (6, 9, 3, 2, 0),   # Histidine: C6H9N3O2
+        'I': (6, 13, 1, 2, 0),  # Isoleucine: C6H13NO2
+        'L': (6, 13, 1, 2, 0),  # Leucine: C6H13NO2
+        'K': (6, 14, 2, 2, 0),  # Lysine: C6H14N2O2
+        'M': (5, 11, 1, 2, 1),  # Methionine: C5H11NO2S
+        'O': (6, 14, 4, 2, 0),  # Pyrrolysine: C6H14N4O2
+        'F': (9, 11, 1, 2, 0),  # Phenylalanine: C9H11NO2
+        'P': (5, 9, 1, 2, 0),   # Proline: C5H9NO2
+        'S': (3, 7, 1, 3, 0),   # Serine: C3H7NO3
+        'T': (4, 9, 1, 3, 0),   # Threonine: C4H9NO3
+        'U': (3, 7, 1, 2, 1),   # Selenocysteine: C3H7NO2Se
+        'W': (11, 12, 2, 2, 0), # Tryptophan: C11H12N2O2
+        'Y': (9, 11, 1, 3, 0),  # Tyrosine: C9H11NO3
+        'V': (5, 11, 1, 2, 0)   # Valine: C5H11NO2
+    }
+    
+    # Initialize total atom counts
+    total_c = 0
+    total_h = 0
+    total_n = 0
+    total_o = 0
+    total_s = 0
+    
+    # Count atoms from each amino acid
+    for aa in sequence:
+        if aa in aa_atoms:
+            c, h, n, o, s = aa_atoms[aa]
+            total_c += c
+            total_h += h
+            total_n += n
+            total_o += o
+            total_s += s
+        else:
+            # Default to glycine for unknown amino acids
+            total_c += 2
+            total_h += 5
+            total_n += 1
+            total_o += 2
+    
+    # Adjust for peptide bonds (remove H2O for each peptide bond)
+    # Each peptide bond removes 1 H and 1 O from the total
+    if len(sequence) > 1:
+        bonds = len(sequence) - 1
+        total_h -= bonds
+        total_o -= bonds
+    
+    # Build molecular formula
+    formula_parts = []
+    if total_c > 0:
+        formula_parts.append(f"C{total_c}")
+    if total_h > 0:
+        formula_parts.append(f"H{total_h}")
+    if total_n > 0:
+        formula_parts.append(f"N{total_n}")
+    if total_o > 0:
+        formula_parts.append(f"O{total_o}")
+    if total_s > 0:
+        formula_parts.append(f"S{total_s}")
+    
+    return ''.join(formula_parts)
+
 def calculate_peptide_properties(sequence: str) -> dict:
     """Calculate peptide properties using Biopython"""
     try:
@@ -71,7 +144,8 @@ def calculate_peptide_properties(sequence: str) -> dict:
             'hydrophobic_count': hydrophobic_count,
             'hydrophilic_count': hydrophilic_count,
             'acidic_count': acidic_count,
-            'basic_count': basic_count
+            'basic_count': basic_count,
+            'molecular_formula': calculate_molecular_formula(sequence)
         }
     except Exception as e:
         return {
@@ -83,7 +157,8 @@ def calculate_peptide_properties(sequence: str) -> dict:
             'hydrophobic_count': 0,
             'hydrophilic_count': 0,
             'acidic_count': 0,
-            'basic_count': 0
+            'basic_count': 0,
+            'molecular_formula': calculate_molecular_formula(sequence)
         }
 
 def peptide_to_smiles(sequence: str) -> str:
@@ -350,8 +425,7 @@ def make_svg(seq: str, original_text: str, mw: float, pi: float, protein_info: d
                    font_family='Arial, sans-serif', font_size='18px', fill='#333'))
     
     # Molecular formula
-    length = protein_info['properties']['length']
-    molecular_formula = f"C{length * 3}H{length * 7}N{length}O{length + 1}"
+    molecular_formula = protein_info['properties']['molecular_formula']
     dwg.add(dwg.text(f"Molecular Formula: {molecular_formula}", insert=('50%', '160px'), text_anchor='middle',
                    font_family='Arial, sans-serif', font_size='14px', fill='#666'))
     

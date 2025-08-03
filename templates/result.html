@@ -414,7 +414,7 @@
                     <h4>🧬 Molecular Structure</h4>
                     <p><strong>Sequence:</strong> {{ seq }}</p>
                     <p><strong>Length:</strong> {{ protein_info.properties.length }} amino acids</p>
-                    <p><strong>Molecular Formula:</strong> C<sub>{{ protein_info.properties.length * 3 }}</sub>H<sub>{{ protein_info.properties.length * 7 }}</sub>N<sub>{{ protein_info.properties.length }}</sub>O<sub>{{ protein_info.properties.length + 1 }}</sub></p>
+                    <p><strong>Molecular Formula:</strong> {{ protein_info.properties.molecular_formula }}</p>
                 </div>
                 
                 <div class="molecular-card">
