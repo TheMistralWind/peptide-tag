@@ -1,15 +1,5 @@
 FROM python:3.11-slim
 
-# Install system dependencies for RDKit
-RUN apt-get update && apt-get install -y \
-    libxrender1 \
-    libxext6 \
-    libsm6 \
-    libx11-6 \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
 # Set working directory
 WORKDIR /app
 
