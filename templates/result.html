@@ -309,7 +309,19 @@ window.addEventListener('load', function () {
     });
   }
 
-  show('helix').then(painted).then(function (ok) {
+  // The render is not necessarily on the GPU by the time render() returns, so
+  // a single immediate check reports "blank" on a viewer that is about to be
+  // perfectly fine. Give it a few frames before concluding anything.
+  function paintedEventually(triesLeft) {
+    return painted().then(function (ok) {
+      if (ok || triesLeft <= 0) { return ok; }
+      return new Promise(function (resolve) {
+        setTimeout(function () { resolve(paintedEventually(triesLeft - 1)); }, 200);
+      });
+    });
+  }
+
+  show('helix').then(function () { return paintedEventually(5); }).then(function (ok) {
     if (!ok) { return; }
     document.getElementById('viewer-still').remove();
     host.classList.add('is-live');
