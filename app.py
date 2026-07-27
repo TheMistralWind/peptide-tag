@@ -247,6 +247,16 @@ def export_interest():
     })
 
 
+@app.route("/interest/remove", methods=["POST"])
+def remove_interest():
+    """The page promises people can be taken off the list. This is how."""
+    token = os.environ.get("EXPORT_TOKEN", "")
+    if not token or request.args.get("token") != token:
+        abort(404)
+    removed = interest.delete(request.form.get("email", ""))
+    return {"ok": True, "removed": removed}
+
+
 @app.route("/healthz")
 def healthz():
     p = proteome.get()

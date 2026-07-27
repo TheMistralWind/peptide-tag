@@ -192,6 +192,18 @@ def test_an_address_can_be_removed(tmp_path, monkeypatch):
     assert interest.delete("gone@example.com") is False
 
 
+def test_removal_endpoint_needs_the_token(client, tmp_path, monkeypatch):
+    import interest
+    monkeypatch.setattr(interest, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(interest, "_recent", {})
+    interest.add("bye@example.com")
+    monkeypatch.setenv("EXPORT_TOKEN", "s3cret")
+    assert client.post("/interest/remove",
+                       data={"email": "bye@example.com"}).status_code == 404
+    r = client.post("/interest/remove?token=s3cret", data={"email": "bye@example.com"})
+    assert r.status_code == 200 and r.get_json()["removed"] is True
+
+
 def test_result_page_shows_the_helix_without_javascript(client):
     """The drawn helix must be in the HTML, not only after 3Dmol loads."""
     body = client.get("/p/Robin").data.decode()
