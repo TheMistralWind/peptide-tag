@@ -178,10 +178,16 @@ p { margin: 0 0 var(--s4); }
 /* The drawn helix is always there. When 3Dmol loads it removes the still and
    takes over the same box, so a blocked CDN costs the interaction, not the
    picture. */
+/* The live canvas is laid over the drawn helix at zero opacity rather than
+   hidden. display:none gives it a zero-sized canvas, which can never paint, so
+   the "did it paint" check could never pass and the viewer never appeared. */
 .viewer { width: 100%; position: relative; margin-top: var(--s5); }
 .viewer-still svg { display: block; margin: 0 auto; }
-.viewer-live { display: none; width: 100%; height: 420px; position: relative; }
-.viewer.is-live .viewer-live { display: block; }
+.viewer-live { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.viewer.is-live { height: 420px; }
+.viewer.is-live .viewer-still { display: none; }
+.viewer.is-live .viewer-live { position: relative; inset: auto; height: 420px;
+                               opacity: 1; pointer-events: auto; }
 .viewer canvas { display: block; }
 
 .interest { margin-top: var(--s7); }

@@ -323,8 +323,10 @@ window.addEventListener('load', function () {
 
   show('helix').then(function () { return paintedEventually(5); }).then(function (ok) {
     if (!ok) { return; }
-    document.getElementById('viewer-still').remove();
+    // CSS hides the still and promotes the canvas. The box changes height in
+    // the process, so the viewer has to be told to remeasure.
     host.classList.add('is-live');
+    try { viewer.resize(); viewer.zoomTo(); viewer.render(); } catch (err) {}
     var shapes = document.getElementById('shapes');
     if (shapes) { shapes.hidden = false; }
 
