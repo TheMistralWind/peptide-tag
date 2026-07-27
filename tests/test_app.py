@@ -123,6 +123,18 @@ def test_no_fabricated_science_remains(client):
         assert phrase not in body, phrase
 
 
+def test_social_urls_respect_the_forwarded_protocol(client):
+    """Railway forwards plain HTTP, so without ProxyFix og:image goes out
+    as http:// and crawlers are picky about that."""
+    r = client.get("/p/Robin", headers={
+        "X-Forwarded-Proto": "https",
+        "X-Forwarded-Host": "peptide-tag-production.up.railway.app",
+    })
+    body = r.data.decode()
+    assert "https://peptide-tag-production.up.railway.app/p/Robin/og.png" in body
+    assert "http://peptide-tag-production" not in body
+
+
 def test_healthz_reports_a_loaded_proteome(client):
     data = client.get("/healthz").get_json()
     assert data["ok"] is True

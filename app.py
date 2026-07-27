@@ -14,6 +14,7 @@ from urllib.parse import quote
 
 from flask import (Flask, Response, abort, make_response, redirect,
                    render_template, request, url_for)
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import artwork
 import chemistry as C
@@ -22,6 +23,12 @@ import proteome
 import structure
 
 app = Flask(__name__)
+
+# Railway terminates TLS at its edge and forwards plain HTTP, so without this
+# request.url_root reports http:// and every og:image and canonical URL goes out
+# insecure. Social crawlers are picky about that, and the social card is the
+# whole point of having permalinks.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Parse the proteome at import rather than on the first request. Under gunicorn
 # --preload this happens once in the parent, so workers share the 11 MB blob
