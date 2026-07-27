@@ -1,0 +1,14 @@
+# Docker does not read .gitignore, so without this a local build copies the
+# whole virtualenv (including the test-only RDKit) into the image.
+.venv
+venv
+.git
+.github
+__pycache__
+*.pyc
+.pytest_cache
+tests
+.claude
+.vscode
+.DS_Store
+requirements-dev.txt
