@@ -1,494 +1,235 @@
-from flask import Flask, render_template, request, send_file
-from io import BytesIO
-from Bio.SeqUtils.ProtParam import ProteinAnalysis
-import svgwrite, hashlib
-import re
-import requests
-import json
-import time
+"""Peptide Tag: your name, as a molecule.
+
+Every result page is a plain GET at /p/<name>, so a peptide can be linked,
+bookmarked and previewed. The previous version answered a POST and cached the
+artwork in a process-local dict, which meant no shareable URL at all and a 404
+on every download link the moment the container restarted.
+"""
+
+from __future__ import annotations
+
 import os
+import re
+from urllib.parse import quote
+
+from flask import (Flask, Response, abort, make_response, redirect,
+                   render_template, request, url_for)
+
+import artwork
+import chemistry as C
+import printing
+import proteome
+import structure
 
 app = Flask(__name__)
 
-SAFE_MAP = {**{c: c for c in "ACDEFGHIKLMNPQRSTVWY"},
-            "O": "O", "U": "U",
-            "B": "N",  # B (Asx) -> N (Asparagine) - most common
-            "Z": "Q",  # Z (Glx) -> Q (Glutamine) - most common  
-            "X": "G",  # X (unknown) -> G (Glycine) - smallest amino acid
-            "J": "L"}  # J (Xle) -> L (Leucine) - more common than I
-FALLBACK = "G"  # Default to glycine instead of X
+# Parse the proteome at import rather than on the first request. Under gunicorn
+# --preload this happens once in the parent, so workers share the 11 MB blob
+# copy-on-write and nobody's first search pays the 0.1s.
+proteome.get()
 
-def get_aa_properties(aa: str) -> dict:
-    """Get properties for a single amino acid"""
-    properties = {
-        'A': {'name': 'Alanine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'R': {'name': 'Arginine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
-        'N': {'name': 'Asparagine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
-        'D': {'name': 'Aspartic Acid', 'polarity': 'Polar', 'charge': 'Negative', 'type': 'Acidic'},
-        'C': {'name': 'Cysteine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'E': {'name': 'Glutamic Acid', 'polarity': 'Polar', 'charge': 'Negative', 'type': 'Acidic'},
-        'Q': {'name': 'Glutamine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
-        'G': {'name': 'Glycine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'H': {'name': 'Histidine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
-        'I': {'name': 'Isoleucine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'L': {'name': 'Leucine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'K': {'name': 'Lysine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
-        'M': {'name': 'Methionine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'O': {'name': 'Pyrrolysine', 'polarity': 'Polar', 'charge': 'Positive', 'type': 'Basic'},
-        'F': {'name': 'Phenylalanine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'P': {'name': 'Proline', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'S': {'name': 'Serine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
-        'T': {'name': 'Threonine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
-        'U': {'name': 'Selenocysteine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'W': {'name': 'Tryptophan', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'},
-        'Y': {'name': 'Tyrosine', 'polarity': 'Polar', 'charge': 'Neutral', 'type': 'Polar'},
-        'V': {'name': 'Valine', 'polarity': 'Non-polar', 'charge': 'Neutral', 'type': 'Non-polar'}
-    }
-    return properties.get(aa, {'name': 'Unknown', 'polarity': 'Unknown', 'charge': 'Unknown', 'type': 'Unknown'})
+MAX_INPUT = 80
+CACHE = "public, max-age=31536000, immutable"
 
-def calculate_molecular_formula(sequence: str) -> str:
-    """Calculate the actual molecular formula by counting atoms from each amino acid"""
-    # Atom counts for each amino acid (C, H, N, O, S)
-    aa_atoms = {
-        'A': (3, 7, 1, 2, 0),  # Alanine: C3H7NO2
-        'R': (6, 14, 4, 2, 0),  # Arginine: C6H14N4O2
-        'N': (4, 8, 2, 3, 0),   # Asparagine: C4H8N2O3
-        'D': (4, 7, 1, 4, 0),   # Aspartic acid: C4H7NO4
-        'C': (3, 7, 1, 2, 1),   # Cysteine: C3H7NO2S
-        'E': (5, 9, 1, 4, 0),   # Glutamic acid: C5H9NO4
-        'Q': (5, 10, 2, 3, 0),  # Glutamine: C5H10N2O3
-        'G': (2, 5, 1, 2, 0),   # Glycine: C2H5NO2
-        'H': (6, 9, 3, 2, 0),   # Histidine: C6H9N3O2
-        'I': (6, 13, 1, 2, 0),  # Isoleucine: C6H13NO2
-        'L': (6, 13, 1, 2, 0),  # Leucine: C6H13NO2
-        'K': (6, 14, 2, 2, 0),  # Lysine: C6H14N2O2
-        'M': (5, 11, 1, 2, 1),  # Methionine: C5H11NO2S
-        'O': (6, 14, 4, 2, 0),  # Pyrrolysine: C6H14N4O2
-        'F': (9, 11, 1, 2, 0),  # Phenylalanine: C9H11NO2
-        'P': (5, 9, 1, 2, 0),   # Proline: C5H9NO2
-        'S': (3, 7, 1, 3, 0),   # Serine: C3H7NO3
-        'T': (4, 9, 1, 3, 0),   # Threonine: C4H9NO3
-        'U': (3, 7, 1, 2, 1),   # Selenocysteine: C3H7NO2Se
-        'W': (11, 12, 2, 2, 0), # Tryptophan: C11H12N2O2
-        'Y': (9, 11, 1, 3, 0),  # Tyrosine: C9H11NO3
-        'V': (5, 11, 1, 2, 0)   # Valine: C5H11NO2
-    }
-    
-    # Initialize total atom counts
-    total_c = 0
-    total_h = 0
-    total_n = 0
-    total_o = 0
-    total_s = 0
-    
-    # Count atoms from each amino acid
-    for aa in sequence:
-        if aa in aa_atoms:
-            c, h, n, o, s = aa_atoms[aa]
-            total_c += c
-            total_h += h
-            total_n += n
-            total_o += o
-            total_s += s
-        else:
-            # Default to glycine for unknown amino acids
-            total_c += 2
-            total_h += 5
-            total_n += 1
-            total_o += 2
-    
-    # Adjust for peptide bonds (remove H2O for each peptide bond)
-    # Each peptide bond removes 1 H and 1 O from the total
-    if len(sequence) > 1:
-        bonds = len(sequence) - 1
-        total_h -= bonds
-        total_o -= bonds
-    
-    # Build molecular formula
-    formula_parts = []
-    if total_c > 0:
-        formula_parts.append(f"C{total_c}")
-    if total_h > 0:
-        formula_parts.append(f"H{total_h}")
-    if total_n > 0:
-        formula_parts.append(f"N{total_n}")
-    if total_o > 0:
-        formula_parts.append(f"O{total_o}")
-    if total_s > 0:
-        formula_parts.append(f"S{total_s}")
-    
-    return ''.join(formula_parts)
 
-def calculate_peptide_properties(sequence: str) -> dict:
-    """Calculate peptide properties using Biopython"""
-    try:
-        ana = ProteinAnalysis(sequence)
-        
-        # Calculate amino acid type counts
-        hydrophobic = ['A', 'I', 'L', 'M', 'F', 'P', 'V', 'W']
-        hydrophilic = ['N', 'Q', 'S', 'T', 'Y']
-        acidic = ['D', 'E']
-        basic = ['R', 'H', 'K']
-        
-        hydrophobic_count = sum(1 for aa in sequence if aa in hydrophobic)
-        hydrophilic_count = sum(1 for aa in sequence if aa in hydrophilic)
-        acidic_count = sum(1 for aa in sequence if aa in acidic)
-        basic_count = sum(1 for aa in sequence if aa in basic)
-        
-        return {
-            'molecular_weight': ana.molecular_weight(),
-            'isoelectric_point': ana.isoelectric_point(),
-            'amino_acid_count': ana.count_amino_acids(),
-            'secondary_structure_fraction': ana.secondary_structure_fraction(),
-            'length': len(sequence),
-            'hydrophobic_count': hydrophobic_count,
-            'hydrophilic_count': hydrophilic_count,
-            'acidic_count': acidic_count,
-            'basic_count': basic_count,
-            'molecular_formula': calculate_molecular_formula(sequence)
-        }
-    except Exception as e:
-        return {
-            'molecular_weight': 0,
-            'isoelectric_point': 0,
-            'amino_acid_count': {},
-            'secondary_structure_fraction': (0, 0, 0),
-            'length': len(sequence),
-            'hydrophobic_count': 0,
-            'hydrophilic_count': 0,
-            'acidic_count': 0,
-            'basic_count': 0,
-            'molecular_formula': calculate_molecular_formula(sequence)
-        }
+def canonical(name: str) -> str:
+    """Collapse whitespace and cap length, so URLs stay tidy and stable.
 
-def peptide_to_smiles(sequence: str) -> str:
-    """Convert peptide sequence to SMILES notation"""
-    # Amino acid SMILES representations (side chains only, without N and C termini)
-    aa_smiles = {
-        'A': 'C(C)',  # Alanine
-        'R': 'C(CCCNC(=N)N)',  # Arginine
-        'N': 'C(CC(=O)N)',  # Asparagine
-        'D': 'C(CC(=O)O)',  # Aspartic acid
-        'C': 'C(CS)',  # Cysteine
-        'E': 'C(CCC(=O)O)',  # Glutamic acid
-        'Q': 'C(CCCN)',  # Glutamine
-        'G': '',  # Glycine (no side chain)
-        'H': 'C(CC1=CNC=N1)',  # Histidine
-        'I': 'C(CCC(C)C)',  # Isoleucine
-        'L': 'C(CC(C)C)',  # Leucine
-        'K': 'C(CCCCN)',  # Lysine
-        'M': 'C(CCSC)',  # Methionine
-        'O': 'C(CCCNC(=N)N)',  # Pyrrolysine
-        'F': 'C(CC1=CC=CC=C1)',  # Phenylalanine
-        'P': 'C1CCNC1',  # Proline
-        'S': 'C(CO)',  # Serine
-        'T': 'C(C(C)O)',  # Threonine
-        'U': 'C(CS)',  # Selenocysteine
-        'W': 'C(CC1=CC2=CC=CC=C2NC1)',  # Tryptophan
-        'Y': 'C(CC1=CC=C(O)C=C1)',  # Tyrosine
-        'V': 'C(C(C)C)'  # Valine
-    }
-    
-    if not sequence:
-        return 'NCC(=O)O'  # Default glycine
-    
-    # Build peptide SMILES by connecting amino acids with peptide bonds
-    smiles_parts = []
-    
-    for i, aa in enumerate(sequence):
-        if aa not in aa_smiles:
-            aa = 'G'  # Default to glycine if unknown amino acid
-        
-        side_chain = aa_smiles[aa]
-        
-        if i == 0:
-            # First amino acid: start with N-terminus
-            if side_chain:
-                smiles_parts.append(f'NC({side_chain})C(=O)')
-            else:
-                smiles_parts.append('NCC(=O)')
-        else:
-            # Middle amino acids: connect with peptide bond
-            if side_chain:
-                smiles_parts.append(f'NC({side_chain})C(=O)')
-            else:
-                smiles_parts.append('NCC(=O)')
-    
-    # Add C-terminus to the last amino acid
-    if smiles_parts:
-        smiles_parts[-1] = smiles_parts[-1] + 'O'
-    
-    # Join all parts
-    peptide_smiles = ''.join(smiles_parts)
-    
-    return peptide_smiles
+    Slashes are dropped rather than escaped. The routes use the default string
+    converter precisely so that /p/Robin/model.pdb resolves to the model and not
+    to a peptide named "Robin/model.pdb", which is what a path converter did.
+    """
+    cleaned = re.sub(r"[/\\]", " ", name or "")
+    return re.sub(r"\s+", " ", cleaned.strip())[:MAX_INPUT]
 
-def search_peptide_function_improved(sequence: str) -> dict:
-    """Enhanced search for peptide function information with better API integration"""
-    
-    # Analyze peptide characteristics
-    aa_count = len(sequence)
-    hydrophobic_aa = ['A', 'I', 'L', 'M', 'F', 'P', 'V', 'W']
-    hydrophilic_aa = ['N', 'Q', 'S', 'T', 'Y']
-    acidic_aa = ['D', 'E']
-    basic_aa = ['R', 'H', 'K']
-    
-    hydrophobic_count = sum(1 for aa in sequence if aa in hydrophobic_aa)
-    hydrophilic_count = sum(1 for aa in sequence if aa in hydrophilic_aa)
-    acidic_count = sum(1 for aa in sequence if aa in acidic_aa)
-    basic_count = sum(1 for aa in sequence if aa in basic_aa)
-    
-    # Determine peptide characteristics
-    is_hydrophobic = hydrophobic_count > hydrophilic_count
-    is_charged = acidic_count > 0 or basic_count > 0
-    is_short = aa_count <= 10
-    is_long = aa_count > 20
-    
-    # Enhanced insights based on characteristics
-    insights = []
-    
-    if is_short:
-        insights.append(f"This {aa_count}-amino acid peptide is short and may act as a signaling molecule")
-        insights.append("Short peptides often function as hormones, neurotransmitters, or enzyme inhibitors")
-        insights.append("Potential applications in drug delivery and therapeutic interventions")
-    elif is_long:
-        insights.append(f"This {aa_count}-amino acid peptide is long and may have structural or enzymatic functions")
-        insights.append("Long peptides can form protein domains with specific biological activities")
-        insights.append("May participate in complex cellular processes and signaling cascades")
+
+def sentence(seq: str, props: dict) -> str:
+    """One true sentence about this peptide, computed, never invented."""
+    n = props["length"]
+    pi = props["isoelectric_point"]
+    g = props["gravy"]
+
+    if pi > 8.5:
+        charge = ("It carries a net positive charge in blood, which is the sort "
+                  "of thing that makes a peptide stick to DNA and to cell membranes")
+    elif pi < 6.0:
+        charge = ("It carries a net negative charge in blood, which is the sort "
+                  "of thing that makes a peptide bind metal ions")
     else:
-        insights.append(f"This {aa_count}-amino acid peptide has moderate length suitable for various functions")
-        insights.append("Balanced properties suggest versatility in biological systems")
-    
-    if is_hydrophobic:
-        insights.append("High hydrophobic content suggests membrane interaction potential")
-        insights.append("May function as a membrane protein or lipid-binding peptide")
-        insights.append("Potential for crossing cell membranes and drug delivery")
+        charge = ("It sits close to neutral at the pH of blood, which is also "
+                  "the pH at which it would be least soluble")
+
+    if g > 0.5:
+        water = "It is greasy enough that it would rather sit in a membrane than in water"
+    elif g < -1.0:
+        water = "It is water-loving, and would dissolve readily"
     else:
-        insights.append("High hydrophilic content suggests water-soluble protein function")
-        insights.append("May function as a signaling molecule or enzyme")
-        insights.append("Suitable for extracellular signaling and receptor interactions")
-    
-    if is_charged:
-        if basic_count > acidic_count:
-            insights.append("Net positive charge suggests DNA/RNA binding potential")
-            insights.append("May function as a transcription factor or nucleic acid binding protein")
-            insights.append("Potential applications in gene therapy and molecular targeting")
-        else:
-            insights.append("Net negative charge suggests metal ion binding potential")
-            insights.append("May function as a metalloprotein or enzyme cofactor")
-            insights.append("Potential for catalytic activities and metal homeostasis")
-    
-    # Add specific amino acid insights
-    if 'R' in sequence or 'K' in sequence:
-        insights.append("Contains basic amino acids - may interact with nucleic acids or membranes")
-    if 'D' in sequence or 'E' in sequence:
-        insights.append("Contains acidic amino acids - may bind metal ions or participate in catalysis")
-    if 'C' in sequence:
-        insights.append("Contains cysteine - may form disulfide bonds for structural stability")
-    if 'P' in sequence:
-        insights.append("Contains proline - may introduce structural bends or rigidity")
-    if 'W' in sequence or 'Y' in sequence:
-        insights.append("Contains aromatic amino acids - may participate in π-π interactions")
-    
-    # Enhanced function prediction
-    if hydrophobic_count > aa_count * 0.6:
-        function_prediction = "Membrane protein or lipid-binding peptide"
-        therapeutic_potential = "High - membrane penetration and drug delivery"
-    elif basic_count > 0 and basic_count > acidic_count:
-        function_prediction = "DNA/RNA binding protein or transcription factor"
-        therapeutic_potential = "High - gene therapy and molecular targeting"
-    elif acidic_count > 0 and acidic_count > basic_count:
-        function_prediction = "Metalloprotein or enzyme"
-        therapeutic_potential = "Moderate - catalytic and regulatory functions"
-    elif 'C' in sequence:
-        function_prediction = "Structural protein with disulfide bonds"
-        therapeutic_potential = "Moderate - structural stability and protein engineering"
+        water = "It is neither strongly water-loving nor greasy"
+
+    if n <= 5:
+        size = f"At {n} residues it is far too short to fold into anything"
+    elif n <= 15:
+        size = (f"At {n} residues it is still too short to fold on its own, "
+                "though peptides this size are exactly the size of most hormones")
     else:
-        function_prediction = "Signaling molecule or enzyme"
-        therapeutic_potential = "High - cellular communication and regulation"
-    
-    # Enhanced search results with better structure
+        size = (f"At {n} residues it is long enough that it might adopt "
+                "a shape, given something to fold against")
+
+    return f"{size}. {charge}. {water}."
+
+
+def build(name: str) -> dict | None:
+    """Everything the result page needs. None when there is nothing to show."""
+    peptide = C.text_to_sequence(name)
+    if not peptide.sequence:
+        return None
+
+    seq = peptide.sequence
+    props = C.analyse(seq)
+    standard = C.to_standard(seq)
+    fragment = proteome.longest_fragment(standard)
+
+    residues = C.composition(seq)
+    for row in residues:
+        row["charge"] = C.CHARGE.get(row["letter"], 0)
+        row["partial"] = row["letter"] in C.PARTIAL_CHARGE
+
     return {
-        'found_info': True,
-        'ai_analysis': {
-            'predicted_function': function_prediction,
-            'confidence': 'High' if aa_count <= 20 else 'Moderate',
-            'therapeutic_potential': therapeutic_potential,
-            'biological_pathways': ['Protein synthesis', 'Cellular signaling', 'Metabolic regulation', 'Gene expression'],
-            'structural_features': [f'{aa_count} amino acids', 'Linear peptide', 'Natural sequence', 'Bioactive potential']
-        },
-        'therapeutic_applications': [
-            {
-                'query': f"{sequence} peptide therapeutic applications",
-                'abstract': f"Analysis suggests this {aa_count}-amino acid peptide has {function_prediction.lower()} potential. Key characteristics include {hydrophobic_count} hydrophobic, {hydrophilic_count} hydrophilic, {acidic_count} acidic, and {basic_count} basic amino acids. {therapeutic_potential}",
-                'source': 'AI Analysis',
-                'url': '#'
-            }
-        ],
-        'biological_pathways': [
-            {
-                'query': f"{sequence} biological pathways",
-                'abstract': f"This peptide likely participates in cellular signaling and metabolic regulation pathways based on its {aa_count} amino acid composition. The {function_prediction.lower()} suggests involvement in key biological processes including protein-protein interactions and cellular communication.",
-                'source': 'AI Analysis',
-                'url': '#'
-            }
-        ],
-        'similar_peptides': [
-            {
-                'name': f'Similar {aa_count}-mer peptides',
-                'description': f'Based on length and composition analysis, this peptide shares characteristics with known bioactive peptides of similar size and charge distribution.',
-                'applications': [
-                    'Drug delivery systems',
-                    'Therapeutic peptide design',
-                    'Biomaterial development',
-                    'Enzyme inhibition'
-                ],
-                'pathways': [
-                    'Cell signaling cascades',
-                    'Protein-protein interactions',
-                    'Membrane transport',
-                    'Regulatory networks'
-                ]
-            }
-        ],
-        'general_insights': insights,
-        'suggestions': [
-            'Peptide synthesis and purification',
-            'Structure-activity relationship studies',
-            'Bioactivity screening assays',
-            'Therapeutic peptide optimization',
-            'Molecular modeling and simulation',
-            'Protein-protein interaction studies'
-        ]
+        "name": name,
+        "peptide": peptide,
+        "seq": seq,
+        "props": props,
+        "residues": residues,
+        "sentence": sentence(seq, props),
+        "smiles": C.build_smiles(seq),
+        "fragment": fragment,
+        "projected": standard != seq,
+        "chain_svg": artwork.chain_svg(seq, max_width=760, max_cols=10),
+        "chain_svg_narrow": artwork.chain_svg(seq, max_width=330, max_cols=6),
     }
 
-def text_to_peptide(text: str) -> str:
-    """Convert text to peptide sequence"""
-    # Convert to uppercase and keep only letters
-    text = re.sub(r'[^A-Za-z]', '', text.upper())
-    
-    # Map each letter to amino acid
-    peptide = ""
-    for char in text:
-        if char in SAFE_MAP:
-            peptide += SAFE_MAP[char]
-        else:
-            peptide += FALLBACK
-    
-    return peptide
-
-def create_visual_sequence(text: str) -> str:
-    """Create visual representation of the conversion"""
-    original = text.upper()
-    peptide = text_to_peptide(text)
-    
-    visual = f"{original} → {peptide}"
-    return visual
-
-def create_svg_visual_sequence(text: str) -> str:
-    """Create SVG visual sequence"""
-    original = text.upper()
-    peptide = text_to_peptide(text)
-    
-    # Create SVG
-    dwg = svgwrite.Drawing(size=('100%', '60px'))
-    
-    # Background
-    dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'),
-               fill='#f8f9fa', stroke='#dee2e6', stroke_width='1', rx='5'))
-    
-    # Text
-    dwg.add(dwg.text(f"{original} → {peptide}", 
-                   insert=('50%', '50%'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='16px', fill='#333'))
-    
-    return dwg.tostring()
-
-def make_svg(seq: str, original_text: str, mw: float, pi: float, protein_info: dict) -> bytes:
-    """Create simple SVG peptide tag"""
-    dwg = svgwrite.Drawing(size=('500px', '350px'))
-    
-    # Background
-    dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'),
-               fill='white', stroke='#333', stroke_width='2', rx='10'))
-    
-    # Title
-    dwg.add(dwg.text("Peptide Tag", insert=('50%', '40px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='24px', fill='#333', font_weight='bold'))
-    
-    # Original text
-    dwg.add(dwg.text(f"Original: {original_text}", insert=('50%', '80px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='16px', fill='#666'))
-    
-    # Sequence
-    dwg.add(dwg.text(f"Sequence: {seq}", insert=('50%', '120px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='18px', fill='#333'))
-    
-    # Molecular formula
-    molecular_formula = protein_info['properties']['molecular_formula']
-    dwg.add(dwg.text(f"Molecular Formula: {molecular_formula}", insert=('50%', '160px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='14px', fill='#666'))
-    
-    # Basic molecular information
-    dwg.add(dwg.text(f"Molecular Weight: {mw:.1f} Da", insert=('50%', '190px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='14px', fill='#666'))
-    
-    dwg.add(dwg.text(f"Isoelectric Point: {pi:.2f}", insert=('50%', '220px'), text_anchor='middle',
-                   font_family='Arial, sans-serif', font_size='14px', fill='#666'))
-    
-    return dwg.tostring().encode()
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        raw = request.form["username"]
-        seq = text_to_peptide(raw)
-        visual_seq = create_visual_sequence(raw)
-        ana = ProteinAnalysis(seq)
-        mw, pi = ana.molecular_weight(), ana.isoelectric_point()
-        
-        # Generate protein info
-        protein_info = {
-            'amino_acids': {},
-            'properties': calculate_peptide_properties(seq),
-            'smiles': peptide_to_smiles(seq),
-            'biological_info': []
-        }
-        
-        # Analyze each amino acid in the sequence
-        for i, aa in enumerate(seq):
-            if aa not in protein_info['amino_acids']:
-                protein_info['amino_acids'][aa] = {
-                    'count': 0,
-                    'positions': [],
-                    'properties': get_aa_properties(aa),
-                    'molecular_structure': f'<a href="https://molview.org/?q={peptide_to_smiles(aa)}" target="_blank" style="display: inline-block; padding: 0.5rem; background: #007bff; color: white; text-decoration: none; border-radius: 4px; font-size: 0.8rem;">🔬 View {aa}</a>'
-                }
-            protein_info['amino_acids'][aa]['count'] += 1
-            protein_info['amino_acids'][aa]['positions'].append(i + 1)
-        
-        # Create simple SVG
-        svg_bytes = make_svg(seq, raw, mw, pi, protein_info)
-        svg_id = hashlib.md5(svg_bytes).hexdigest()
-        app.config.setdefault("SVGS", {})[svg_id] = svg_bytes
-        
-        # Enhanced search for peptide function information
-        search_results = search_peptide_function_improved(seq)
-        
-        return render_template("result.html", seq=seq, visual_seq=visual_seq, mw=mw, pi=pi,
-                               svg_id=svg_id, raw=raw, protein_info=protein_info,
-                               search_results=search_results)
+        name = canonical(request.form.get("name") or request.form.get("username", ""))
+        if not C.text_to_sequence(name).sequence:
+            return render_template(
+                "index.html", error="That has no letters in it, so there is "
+                                    "nothing to spell a peptide with.",
+                value=name), 400
+        return redirect(url_for("peptide", name=name))
     return render_template("index.html")
 
-@app.route("/download/<svg_id>.svg")
-def download_svg(svg_id):
-    svg_bytes = app.config["SVGS"].get(svg_id)
-    if not svg_bytes:
-        return "File expired", 404
-    return send_file(BytesIO(svg_bytes), mimetype="image/svg+xml",
-                     download_name=f"peptide_{svg_id}.svg", as_attachment=True)
+
+@app.route("/p/<name>")
+def peptide(name: str):
+    clean = canonical(name)
+    if not clean:
+        return redirect(url_for("index"))
+    if clean != name:
+        return redirect(url_for("peptide", name=clean))
+    data = build(clean)
+    if not data:
+        return render_template(
+            "index.html", error="That has no letters in it, so there is "
+                                "nothing to spell a peptide with.",
+            value=clean), 404
+    return render_template("result.html", **data)
+
+
+@app.route("/p/<name>/tag.svg")
+def tag_svg(name: str):
+    data = build(canonical(name))
+    if not data:
+        abort(404)
+    svg = artwork.specimen_svg(data["name"], data["seq"], data["props"])
+    r = make_response(svg)
+    r.headers["Content-Type"] = "image/svg+xml; charset=utf-8"
+    r.headers["Cache-Control"] = CACHE
+    if request.args.get("download"):
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", data["name"]) or "peptide"
+        r.headers["Content-Disposition"] = f'attachment; filename="{safe}.svg"'
+    return r
+
+
+@app.route("/p/<name>/og.png")
+def og_png(name: str):
+    data = build(canonical(name))
+    if not data:
+        abort(404)
+    png = artwork.social_png(data["name"], data["seq"], data["props"])
+    return Response(png, mimetype="image/png",
+                    headers={"Cache-Control": CACHE})
+
+
+@app.route("/p/<name>/model.pdb")
+def model_pdb(name: str):
+    shape = request.args.get("shape", "helix")
+    if shape not in structure.SHAPES:
+        shape = "helix"
+    data = build(canonical(name))
+    if not data:
+        abort(404)
+    pdb = structure.model_pdb(data["seq"], shape)
+    if not pdb:
+        abort(404)
+    return Response(pdb, mimetype="chemical/x-pdb",
+                    headers={"Cache-Control": CACHE})
+
+
+@app.route("/p/<name>/model.stl")
+def model_stl(name: str):
+    shape = request.args.get("shape", "helix")
+    if shape not in structure.SHAPES:
+        shape = "helix"
+    data = build(canonical(name))
+    if not data:
+        abort(404)
+    stl = printing.model_stl(data["seq"], shape)
+    if not stl:
+        abort(404)
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", data["name"]) or "peptide"
+    return Response(stl, mimetype="model/stl", headers={
+        "Cache-Control": CACHE,
+        "Content-Disposition": f'attachment; filename="{safe}-{shape}.stl"',
+    })
+
+
+@app.route("/healthz")
+def healthz():
+    p = proteome.get()
+    return {"ok": True, "proteins": len(p.proteins), "residues": p.residues}
+
+
+@app.errorhandler(404)
+def not_found(_):
+    return render_template("index.html",
+                           error="There is nothing at that address."), 404
+
+
+@app.errorhandler(500)
+def server_error(_):
+    return render_template("index.html",
+                           error="Something broke on our side. Try again."), 500
+
+
+@app.template_filter("formula")
+def formula_filter(value: str) -> str:
+    from markupsafe import Markup
+    return Markup(C.format_formula_html(value))
+
+
+@app.context_processor
+def helpers():
+    # SHOP_URL is unset until there is a shop. The "order a print" link simply
+    # does not render until Railway has the variable, so nothing here promises
+    # something that cannot be bought yet.
+    return {"quote": quote, "shop_url": os.environ.get("SHOP_URL", "")}
+
 
 if __name__ == "__main__":
-    # Get port from environment variable (for deployment platforms)
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False) 
+    proteome.get()  # warm the index before serving
+    # 5000 is taken by AirPlay on macOS, so local runs default elsewhere.
+    port = int(os.environ.get("PORT", 5055))
+    app.run(host="0.0.0.0", port=port, debug=False)

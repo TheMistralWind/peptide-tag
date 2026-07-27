@@ -1,4 +1,13 @@
-flask==3.0.0
-biopython==1.81
-svgwrite==1.4.3
-requests==2.31.0
+flask==3.1.1
+biopython==1.85
+pillow==11.3.0
+gunicorn==23.0.0
+
+# 3D model of the peptide. PeptideBuilder's only dependency is biopython,
+# which is already here.
+PeptideBuilder==1.1.0
+
+# Printable mesh. manifold3d is the boolean engine trimesh uses to fuse the
+# balls and sticks into one watertight solid.
+trimesh==4.12.2
+manifold3d==3.5.2

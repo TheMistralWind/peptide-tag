@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest==8.4.1
+# RDKit is a test-only dependency. It independently rebuilds every peptide and
+# checks our SMILES and molecular formulas against its own, so the app can
+# serve requests without carrying a 37 MB chemistry toolkit.
+rdkit==2025.3.5

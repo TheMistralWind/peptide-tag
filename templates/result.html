@@ -1,674 +1,237 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Peptide Result - {{ raw }}</title>
-    <!-- PostHog product analytics (cookieless, EU). Shared "Robin Apps" project, split by the registered app super-property. -->
-    <script>
-        !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug getPageViewId captureTraceFeedback captureTraceMetric".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-        posthog.init('phc_AkyXL2GftuPsbivi6buW6BUDUoXCsQKjCZN9YXjk37Dp', {
-            api_host: 'https://eu.i.posthog.com',
-            ui_host: 'https://eu.posthog.com',
-            persistence: 'memory',
-            person_profiles: 'identified_only',
-            capture_pageview: true,
-            capture_pageleave: true,
-            autocapture: true,
-            loaded: function (ph) { ph.register({ app: 'peptide-tag' }); }
-        });
-    </script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .container {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 600px;
-            width: 90%;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 1rem;
-            font-size: 2rem;
-        }
-        .input-text {
-            color: #666;
-            font-style: italic;
-            margin-bottom: 2rem;
-        }
-        .peptide-display {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 2rem;
-            margin: 1.5rem 0;
-            border: 2px solid #e9ecef;
-        }
-        .sequence {
-            font-family: 'Courier New', monospace;
-            font-size: 2rem;
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 1rem;
-            letter-spacing: 2px;
-        }
-        .sequence sup {
-            font-size: 1rem;
-            color: #666;
-            vertical-align: super;
-        }
-        .stats {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin: 1.5rem 0;
-            flex-wrap: wrap;
-        }
-        .stat {
-            background: #667eea;
-            color: white;
-            padding: 0.8rem 1.5rem;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-        .svg-container {
-            margin: 2rem 0;
-            padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 10px;
-        }
-        .download-btn {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 1rem 2rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            margin: 1rem 0.5rem;
-            transition: transform 0.2s ease;
-        }
-        .download-btn:hover {
-            transform: translateY(-2px);
-        }
-        .back-btn {
-            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-            color: white;
-            padding: 0.8rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            margin-top: 1rem;
-            transition: transform 0.2s ease;
-        }
-        .back-btn:hover {
-            transform: translateY(-2px);
-        }
-        .svg-preview {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        
-        /* 2D Molecular Structure Section Styles */
-        .structure-section {
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .structure-description {
-            color: #666;
-            margin-bottom: 1rem;
-            font-style: italic;
-        }
-        
-        .molecular-info {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            margin: 1.5rem 0;
-            text-align: left;
-        }
-        
-        .molecular-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .molecular-card h4 {
-            margin: 0 0 1rem 0;
-            color: #333;
-            font-size: 1.1rem;
-        }
-        
-        .molecular-structure {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 8px;
-            margin: 1.5rem 0;
-        }
-        
-        .structure-visualization {
-            text-align: center;
-            margin: 1rem 0;
-        }
-        
-        .structure-note {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 8px;
-            color: #666;
-        }
-        
-        /* Molecular Analysis Styles */
-        .molecular-section {
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .molecular-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-top: 1rem;
-        }
-        
-        .molecular-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .molecular-card h4 {
-            margin: 0 0 1rem 0;
-            color: #333;
-            font-size: 1.1rem;
-        }
-        
-        .aa-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .aa-item {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            padding: 0.5rem;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }
-        
-        .aa-letter {
-            font-weight: bold;
-            font-family: 'Courier New', monospace;
-            color: #495057;
-            min-width: 20px;
-        }
-        
-        .aa-name {
-            flex: 1;
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
-        .aa-type {
-            padding: 0.2rem 0.5rem;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        
-        .aa-type.acidic { background: #ff6b6b; color: white; }
-        .aa-type.basic { background: #4ecdc4; color: white; }
-        .aa-type.polar { background: #45b7d1; color: white; }
-        .aa-type.nonpolar { background: #96ceb4; color: white; }
-        
-        .aa-count {
-            font-weight: bold;
-            color: #495057;
-        }
-        
-        .properties-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .property {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }
-        
-        .property-label {
-            font-weight: bold;
-            color: #495057;
-        }
-        
-        .property-value {
-            color: #666;
-        }
-        
-        /* Biological Information Styles */
-        .biological-section {
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .bio-info {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .bio-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
-            padding: 1rem;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .bio-icon {
-            font-size: 1.2rem;
-            flex-shrink: 0;
-        }
-        
-        .bio-text {
-            color: #495057;
-            line-height: 1.5;
-        }
-        
-        /* Peptide Function Search Section Styles */
-        .search-section {
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .search-description {
-            color: #666;
-            margin-bottom: 1rem;
-            font-style: italic;
-        }
-        
-        .search-result {
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .search-result h4 {
-            margin: 0 0 0.5rem 0;
-            color: #333;
-            font-size: 1.1rem;
-        }
-        
-        .result-content {
-            text-align: left;
-            margin-left: 1rem;
-        }
-        
-        .result-text {
-            color: #495057;
-            line-height: 1.6;
-            margin-bottom: 0.5rem;
-        }
-        
-        .result-source {
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
-        .suggestions-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            text-align: left;
-            margin-left: 1rem;
-        }
-        
-        .suggestions-list li {
-            margin-bottom: 0.5rem;
-            color: #495057;
-        }
-        
-        .search-note {
-            margin-top: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid #e9ecef;
-            color: #666;
-            font-style: italic;
-        }
-        
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .molecular-grid, .molecular-info {
-                grid-template-columns: 1fr;
-            }
-            
-            .aa-item {
-                flex-wrap: wrap;
-            }
-            
-            .aa-name {
-                min-width: 120px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h1>🧬 Your Peptide Tag</h1>
-            <a href="/" class="back-btn" style="margin: 0;">← Generate Another</a>
-        </div>
-        <p class="input-text">Generated from: "{{ raw }}"</p>
-        
-        <div class="peptide-display">
-            <div class="sequence">{{ visual_seq | safe }}</div>
-            <div class="stats">
-                <div class="stat">MW: {{ "%.1f"|format(mw) }} Da</div>
-                <div class="stat">pI: {{ "%.2f"|format(pi) }}</div>
-            </div>
-        </div>
-        
-        <!-- 2D Molecular Structure Section - MOVED ABOVE VISUAL TAG -->
-        <div class="structure-section">
-            <h3>🧪 2D Molecular Structure (Atoms & Bonds)</h3>
-            <p class="structure-description">
-                Actual molecular structure showing atoms, bonds, and functional groups.
-            </p>
-            
-            <div class="molecular-info">
-                <div class="molecular-card">
-                    <h4>🧬 Molecular Structure</h4>
-                    <p><strong>Sequence:</strong> {{ seq }}</p>
-                    <p><strong>Length:</strong> {{ protein_info.properties.length }} amino acids</p>
-                    <p><strong>Molecular Formula:</strong> {{ protein_info.properties.molecular_formula }}</p>
-                </div>
-                
-                <div class="molecular-card">
-                    <h4>🔬 2D Molecular Structure</h4>
-                    <div class="molecular-structure">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">🧬</div>
-                        <h3 style="margin-bottom: 0.5rem; color: white;">See what your name looks like as a protein!</h3>
-                        <p style="color: #f0f0f0; margin-top: 0.5rem; font-size: 1.1rem;">Interactive 2D molecular structure</p>
-                        <div style="margin-top: 1.5rem;">
-                            <a href="https://molview.org/?q={{ protein_info.smiles }}" target="_blank" 
-                               style="background: white; color: #667eea; padding: 1rem 2rem; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                                🔬 View Your Protein in 3D
-                            </a>
-                        </div>
-                    </div>
-                    <div class="structure-note">
-                        <p><strong>SMILES:</strong> <code>{{ protein_info.smiles }}</code></p>
-                        <button onclick="copySmiles('{{ protein_info.smiles }}')" style="background: #6c757d; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
-                            📋 Copy SMILES
-                        </button>
-                        <p style="margin-top: 1rem; font-size: 0.9rem; color: #666;"><em>Click "View in MolView" to see the interactive 2D molecular structure in a new tab.</em></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Visual Tag Section - NOW BELOW MOLECULAR STRUCTURE -->
-        <div class="svg-container">
-            <h3>Visual Tag</h3>
-            <img src="/download/{{ svg_id }}.svg" alt="Peptide tag visualization" class="svg-preview">
-            <br>
-            <a href="/download/{{ svg_id }}.svg" class="download-btn">📥 Download SVG</a>
-        </div>
-        
-        <!-- Molecular Analysis Section -->
-        <div class="molecular-section">
-            <h3>🧬 Molecular Analysis</h3>
-            <div class="molecular-grid">
-                <div class="molecular-card">
-                    <h4>Amino Acid Composition</h4>
-                    <div class="aa-list">
-                        {% for aa, data in protein_info.amino_acids.items() %}
-                        <div class="aa-item">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
-                                <span class="aa-letter">{{ aa }}</span>
-                                <span class="aa-name">{{ data.properties.name }}</span>
-                                <span class="aa-type {{ data.properties.type.lower().replace('-', '') }}">{{ data.properties.type }}</span>
-                                <span class="aa-count">×{{ data.count }}</span>
-                            </div>
-                            {% if data.molecular_structure %}
-                            <div style="margin-top: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; text-align: center;">
-                                <small style="color: #666; display: block; margin-bottom: 0.25rem;">Molecular Structure:</small>
-                                {{ data.molecular_structure | safe }}
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                
-                <div class="molecular-card">
-                    <h4>Peptide Properties</h4>
-                    <div class="properties-list">
-                        <div class="property">
-                            <span class="property-label">Length:</span>
-                            <span class="property-value">{{ protein_info.properties.length }} amino acids</span>
-                        </div>
-                        <div class="property">
-                            <span class="property-label">Hydrophobic:</span>
-                            <span class="property-value">{{ protein_info.properties.hydrophobic_count }}</span>
-                        </div>
-                        <div class="property">
-                            <span class="property-label">Hydrophilic:</span>
-                            <span class="property-value">{{ protein_info.properties.hydrophilic_count }}</span>
-                        </div>
-                        <div class="property">
-                            <span class="property-label">Acidic:</span>
-                            <span class="property-value">{{ protein_info.properties.acidic_count }}</span>
-                        </div>
-                        <div class="property">
-                            <span class="property-label">Basic:</span>
-                            <span class="property-value">{{ protein_info.properties.basic_count }}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Biological Information Section -->
-        <div class="biological-section">
-            <h3>🔬 Biological Insights</h3>
-            <div class="bio-info">
-                {% for info in protein_info.biological_info %}
-                <div class="bio-item">
-                    <span class="bio-icon">💡</span>
-                    <span class="bio-text">{{ info }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        
-        <!-- Peptide Function Search Section -->
-        <div class="search-section">
-            <h3>🔍 Peptide Function Research</h3>
-            <p class="search-description">
-                Insights about your peptide's potential functions in the human body and nature.
-            </p>
-            
-            {% if search_results.therapeutic_applications %}
-            <div class="search-result">
-                <h4>💊 Therapeutic Applications</h4>
-                <div class="result-content">
-                    {% for app in search_results.therapeutic_applications %}
-                    <div style="margin-bottom: 1rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px;">
-                        <p class="result-text"><strong>Search:</strong> {{ app.query }}</p>
-                        <p class="result-text">{{ app.abstract }}</p>
-                        <p class="result-source">
-                            Source: <a href="{{ app.url }}" target="_blank">{{ app.source }}</a>
-                        </p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if search_results.biological_pathways %}
-            <div class="search-result">
-                <h4>🧬 Biological Pathways</h4>
-                <div class="result-content">
-                    {% for pathway in search_results.biological_pathways %}
-                    <div style="margin-bottom: 1rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px;">
-                        <p class="result-text"><strong>Search:</strong> {{ pathway.query }}</p>
-                        <p class="result-text">{{ pathway.abstract }}</p>
-                        <p class="result-source">
-                            Source: <a href="{{ pathway.url }}" target="_blank">{{ pathway.source }}</a>
-                        </p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if search_results.similar_peptides %}
-            <div class="search-result">
-                <h4>🔬 Similar Known Peptides</h4>
-                <div class="result-content">
-                    {% for peptide in search_results.similar_peptides %}
-                    <div style="margin-bottom: 1rem; padding: 1rem; background: #e8f4fd; border-radius: 8px; border-left: 4px solid #007bff;">
-                        <h5 style="margin: 0 0 0.5rem 0; color: #007bff;">{{ peptide.name }}</h5>
-                        <p class="result-text">{{ peptide.description }}</p>
-                        
-                        <div style="margin-top: 0.5rem;">
-                            <strong style="color: #28a745;">Therapeutic Applications:</strong>
-                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                                {% for app in peptide.applications %}
-                                <li>{{ app }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        
-                        <div style="margin-top: 0.5rem;">
-                            <strong style="color: #dc3545;">Biological Pathways:</strong>
-                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                                {% for pathway in peptide.pathways %}
-                                <li>{{ pathway }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if search_results.found_info %}
-            <div class="search-result">
-                <h4>📚 Found Information</h4>
-                <div class="result-content">
-                    <p class="result-text">{{ search_results.abstract }}</p>
-                    <p class="result-source">
-                        Source: <a href="{{ search_results.url }}" target="_blank">{{ search_results.source }}</a>
-                    </p>
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if search_results.general_info %}
-            <div class="search-result">
-                <h4>🧬 Scientific Insights</h4>
-                <div class="result-content">
-                    <p class="result-text">{{ search_results.general_info }}</p>
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if search_results.suggestions %}
-            <div class="search-result">
-                <h4>🔗 Related Topics</h4>
-                <div class="result-content">
-                    <ul class="suggestions-list">
-                        {% for suggestion in search_results.suggestions %}
-                        <li>{{ suggestion }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            {% endif %}
-            
-            <div class="search-note">
-                <p>💡 <em>These insights are based on peptide properties, web search results, and comparison to known therapeutic peptides. 
-                For specific medical or research applications, consult scientific literature.</em></p>
-            </div>
-        </div>
-        
-        <a href="/" class="back-btn">← Generate Another</a>
-        
-        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e9ecef; color: #666; font-size: 0.9rem;">
-            Made by: <a href="https://robin-gustafsson.com/" target="_blank" style="color: #007bff; text-decoration: none;">@https://robin-gustafsson.com/</a>
-        </div>
-    </div>
-    
-    <script>
-        function copySmiles(smiles) {
-            navigator.clipboard.writeText(smiles).then(function() {
-                // Show a brief notification
-                const button = event.target.closest('button');
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                button.style.background = '#28a745';
-                
-                setTimeout(() => {
-                    button.innerHTML = originalText;
-                    button.style.background = '#6c757d';
-                }, 2000);
-            }).catch(function(err) {
-                console.error('Could not copy text: ', err);
-                alert('SMILES: ' + smiles);
-            });
-        }
-    </script>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}{{ name }} is {{ seq }}{% endblock %}
+{% block description %}{{ name }} spells the peptide {{ seq }}. It weighs {{ "%.1f"|format(props.molecular_weight) }} daltons.{% endblock %}
 
+{% block social %}
+{% set url = request.url_root.rstrip('/') ~ '/p/' ~ quote(name) %}
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ name }} is {{ seq }}">
+<meta property="og:description" content="{{ name }} spells a real peptide. {{ "%.1f"|format(props.molecular_weight) }} daltons.">
+<meta property="og:url" content="{{ url }}">
+<meta property="og:image" content="{{ url }}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The peptide {{ seq }}, drawn as a chain of amino acid tiles.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="{{ url }}">
+{% endblock %}
+
+{% block content %}
+<p class="eyebrow">The peptide of that name</p>
+<h1 class="name">{{ name }}</h1>
+
+<div class="chain">
+  <div class="wide">{{ chain_svg | safe }}</div>
+  <div class="narrow">{{ chain_svg_narrow | safe }}</div>
+</div>
+
+<p class="seq"><span class="term">H₂N </span>{{ seq }}<span class="term"> OH</span></p>
+
+<div class="facts">
+  <div>
+    <span class="lbl">Weight</span>
+    <span class="val">{{ "%.1f"|format(props.molecular_weight) }} Da</span>
+  </div>
+  <div>
+    <span class="lbl">Isoelectric point</span>
+    <span class="val">{{ "%.2f"|format(props.isoelectric_point) }}</span>
+  </div>
+  <div>
+    <span class="lbl">Formula</span>
+    <span class="val">{{ props.formula | formula }}</span>
+  </div>
+</div>
+
+<section>
+  <h2>What it would actually be like</h2>
+  <p class="prose">{{ sentence }}</p>
+</section>
+
+{% if fragment and fragment.hits %}
+{% set hit = fragment.hits[0] %}
+<section>
+  <h2>{% if fragment.whole %}Your whole name is in there.{% else %}Part of it is in there.{% endif %}</h2>
+  <p class="prose">
+    {% if fragment.whole %}
+      All {{ seq | length }} letters of
+    {% else %}
+      The longest run of your name that turns up is
+    {% endif %}
+    {#- Highlight the run inside the real sequence, not the projected one, or a
+        name containing O would be told its own peptide reads RKNIN. -#}
+    <span class="frag"><span class="off">{{ seq[:fragment.start] }}</span>{{ seq[fragment.start:fragment.end] }}<span class="off">{{ seq[fragment.end:] }}</span></span>,
+    and it sits at position {{ hit.position }} of
+    <a class="hit-name" href="{{ hit.url }}">{{ hit.protein.name }}</a>{% if hit.blurb %}, {{ hit.blurb }}{% endif %}.
+    {% if fragment.occurrences > 1 %}
+      It turns up {{ fragment.occurrences }} times across the human proteome.
+    {% else %}
+      That is the only place it occurs in the entire human proteome.
+    {% endif %}
+  </p>
+  {% if fragment.hits | length > 1 %}
+  <p class="prose">Also in
+    {% for h in fragment.hits[1:] %}<a href="{{ h.url }}">{{ h.protein.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+  </p>
+  {% endif %}
+  {% if projected %}
+  <p class="note">
+    Searched as {{ fragment.text }}. Pyrrolysine and selenocysteine are real
+    amino acids, but human proteins are written with the standard twenty, so
+    for this search only they were read as the residues they are built from:
+    O as lysine, U as cysteine.
+  </p>
+  {% endif %}
+</section>
+{% else %}
+<section>
+  <h2>Nowhere in the human proteome.</h2>
+  <p class="prose">
+    Not one of the 20,431 reviewed human proteins contains a run of this name
+    three letters long or more. That is rarer than finding one.
+  </p>
+</section>
+{% endif %}
+
+<section>
+  <h2>The residues</h2>
+  <ul class="residues">
+    {% for r in residues %}
+    <li>
+      <span class="l">{{ r.letter }}</span>
+      <span>{{ r.name|lower }}{% if r.count > 1 %} ×{{ r.count }}{% endif %}</span>
+      <span>{{ r.class_label|lower }}{% if r.charge %} <span class="c">{{ "+" if r.charge > 0 else "−" }}</span>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if residues | selectattr("partial") | list %}
+  <p class="note">
+    Histidine is marked positive by convention, but at the pH of blood it is
+    only about a tenth protonated.
+  </p>
+  {% endif %}
+  {% for r in residues if r.note %}
+  <p class="note"><b>{{ r.letter }}</b>, {{ r.name|lower }}. {{ r.note }}</p>
+  {% endfor %}
+</section>
+
+{% if peptide.swaps %}
+<section>
+  <h2>What I had to change</h2>
+  <ul class="swaps">
+    {% for s in peptide.swaps %}
+    <li><b>{{ s.original }} became {{ s.replacement }}</b> at position {{ s.position }}. {{ s.reason }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section>
+  <h2>In three dimensions</h2>
+  <p class="prose">
+    A peptide this short has no single shape. It is a floppy thing that changes
+    its mind constantly, so nobody can tell you what it looks like. What I can
+    show you is the same sequence built in the two textbook backbone shapes.
+    Flip between them: that is the honest version of a 3D model.
+  </p>
+  <div id="viewer" class="viewer" data-pdb="{{ url_for('model_pdb', name=name) }}"></div>
+  <div class="actions">
+    <button type="button" class="shape is-on" data-shape="helix">alpha helix</button>
+    <button type="button" class="shape" data-shape="strand">extended strand</button>
+  </div>
+  <p class="note">
+    Built from ideal backbone angles, not predicted. Nothing here claims your
+    peptide adopts either shape.
+  </p>
+</section>
+
+<section>
+  <h2>Take it off the screen</h2>
+  <p class="prose">
+    The tag prints as a poster. The model prints on a 3D printer: it comes out
+    about 90&nbsp;mm across, already sitting on a base, with the struts thick
+    enough to survive the post.
+  </p>
+  <div class="actions">
+    <a href="{{ url_for('tag_svg', name=name) }}?download=1">download the tag</a>
+    <a href="{{ url_for('model_stl', name=name) }}" id="stl">download the 3D model</a>
+    {% if shop_url %}<a href="{{ shop_url }}" rel="noopener">order a print</a>{% endif %}
+  </div>
+</section>
+
+<div class="actions">
+  <button type="button" id="copy" data-url="{{ request.url_root.rstrip('/') }}/p/{{ quote(name) }}">copy link</button>
+  <a href="https://molview.org/?q={{ smiles | urlencode }}" rel="noopener">open the structure elsewhere</a>
+</div>
+
+<section>
+  <h2>Someone else?</h2>
+  <form class="ask" method="POST" action="/">
+    <input type="text" name="name" placeholder="another name" maxlength="80"
+           spellcheck="false" aria-label="Another name">
+    <button type="submit">make it</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/3dmol@2.5.2/build/3Dmol-min.js"
+        integrity="sha384-82qegIcn60mVxbwpx1aWNNrRx2Z25cUR7+2yYFlkH7lxvrojhKKKSfRCBMms5Kft"
+        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script>
+document.getElementById('copy').addEventListener('click', function () {
+  var b = this;
+  navigator.clipboard.writeText(b.dataset.url).then(function () {
+    var was = b.textContent;
+    b.textContent = 'copied';
+    if (window.posthog) posthog.capture('link_copied');
+    setTimeout(function () { b.textContent = was; }, 1600);
+  });
+});
+
+document.getElementById('stl').addEventListener('click', function () {
+  if (window.posthog) posthog.capture('stl_downloaded');
+});
+
+// The viewer is progressive enhancement: if the CDN is blocked or WebGL is
+// unavailable the section simply does not appear, and nothing else breaks.
+window.addEventListener('load', function () {
+  var host = document.getElementById('viewer');
+  if (!host || typeof $3Dmol === 'undefined') { return; }
+
+  var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var viewer = $3Dmol.createViewer(host, { backgroundColor: dark ? '#0F0E0C' : '#F7F5F0' });
+  var cache = {};
+
+  function show(shape) {
+    var url = host.dataset.pdb + '?shape=' + shape;
+    var draw = function (pdb) {
+      viewer.clear();
+      viewer.addModel(pdb, 'pdb');
+      viewer.setStyle({}, {
+        stick: { radius: 0.16, colorscheme: dark ? 'whiteCarbon' : 'blackCarbon' },
+        sphere: { scale: 0.22, colorscheme: dark ? 'whiteCarbon' : 'blackCarbon' }
+      });
+      viewer.zoomTo();
+      viewer.render();
+    };
+    if (cache[shape]) { draw(cache[shape]); return; }
+    fetch(url).then(function (r) { return r.text(); }).then(function (pdb) {
+      cache[shape] = pdb;
+      draw(pdb);
+    });
+  }
+
+  show('helix');
+  host.classList.add('is-live');
+
+  Array.prototype.forEach.call(document.querySelectorAll('.shape'), function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.shape').forEach(function (o) { o.classList.remove('is-on'); });
+      b.classList.add('is-on');
+      show(b.dataset.shape);
+      if (window.posthog) posthog.capture('shape_toggled', { shape: b.dataset.shape });
+    });
+  });
+});
+</script>
+{% endblock %}

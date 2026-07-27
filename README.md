@@ -1,159 +1,67 @@
-# 🧬 Peptide Tag Generator
+# Peptide Tag
 
-Convert any text into a unique peptide sequence and visualize its 2D molecular structure!
+Type your name. Get the peptide it spells, and find out where that sequence
+turns up inside a real human protein.
 
-## ✨ Features
+Live at <https://peptide-tag-production.up.railway.app>
 
-- **Text to Peptide Conversion** - Transform names, words, or any text into amino acid sequences
-- **2D Molecular Visualization** - Interactive molecular structures using RDKit
-- **Protein Properties** - Calculate molecular weight, isoelectric point, and more
-- **Function Analysis** - AI-powered peptide function prediction and database searches
-- **Downloadable SVGs** - High-quality vector graphics for presentations and publications
-- **Scientific APIs** - Integration with PubChem, UniProt, PubMed, and specialized peptide databases
+## The idea
 
-## 🚀 Live Demo
+Amino acids each have a one-letter code, and 22 letters of the alphabet are one
+of them. So most names are already a peptide: a real molecule with a real mass
+that a lab could synthesise. Then you can go looking for it, because the human
+proteome is a searchable string of 11.4 million residues.
 
-**[Deploy your own instance](https://railway.app) or visit the live demo!**
+About a third of first names appear in a human protein whole. For the rest, the
+app finds the longest run of the name that does, which means everybody gets an
+answer and longer names get more interesting rather than more hopeless.
 
-## 🛠️ Local Development
+## What it will not do
 
-### Prerequisites
-- Python 3.11+
-- pip
+Everything shown is computed or looked up. There is no invented biology, no
+predicted function, and no therapeutic claim. A five-residue peptide spelled
+from somebody's name is not a drug and the page says so.
 
-### Installation
+The 3D view is labelled as what it is: the sequence built in two textbook
+backbone conformations, an alpha helix and an extended strand. A peptide this
+short has no fixed structure, and being able to flip between the two shapes is
+the honest way to show that.
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/peptide-tag.git
-   cd peptide-tag
-   ```
+## Running it
 
-2. **Create virtual environment**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run the application**
-   ```bash
-   python app.py
-   ```
-
-5. **Open your browser**
-   Visit `http://localhost:5000`
-
-## 🧪 How It Works
-
-### Text Conversion
-- Input text is converted to uppercase
-- Each letter is mapped to amino acids using the standard genetic code
-- Ambiguous amino acids (B, Z, X, J) are resolved to common alternatives
-
-### Molecular Structure
-- **RDKit** generates 2D molecular structures from SMILES notation
-- **PubChem API** provides accurate molecular data
-- **Interactive visualization** with copyable SMILES strings
-
-### Function Analysis
-- **AI-powered analysis** of peptide composition and patterns
-- **Database searches** across PubChem, UniProt, PubMed
-- **Specialized peptide databases** (APD3, CAMP)
-- **Known peptide matching** for functional peptides
-
-## 📊 Example Output
-
-Input: `"ROOSA"` → Output: `"ROOSA"` → Peptide: `Arg-Gln-Gln-Ser-Ala`
-
-**Properties:**
-- Molecular Weight: 573.6 Da
-- Isoelectric Point: 10.2
-- Predicted Function: Cell-penetrating peptide
-
-## 🏗️ Architecture
-
-- **Flask** - Web framework
-- **Biopython** - Protein analysis and properties
-- **RDKit** - Molecular cheminformatics and 2D structures
-- **PubChem API** - Chemical database integration
-- **UniProt API** - Protein database searches
-- **SVG Generation** - Vector graphics for downloads
-
-## 🚀 Deployment
-
-This app is ready for deployment on:
-- **Railway** (recommended) - Free tier, 5-minute setup
-- **Render** - Free tier, good performance
-- **Heroku** - $7/month, established platform
-- **PythonAnywhere** - Free tier, Python-focused
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
-
-## 🔬 Scientific Features
-
-### Molecular Analysis
-- Complete 2D molecular structure visualization
-- Amino acid composition analysis
-- Secondary structure prediction
-- Biological pathway identification
-
-### Database Integration
-- **PubChem** - Chemical structures and properties
-- **UniProt** - Protein function and organism data
-- **PubMed** - Scientific literature search
-- **Specialized databases** - Antimicrobial peptides, therapeutic peptides
-
-### AI-Powered Analysis
-- Sequence pattern recognition
-- Function prediction based on composition
-- Therapeutic potential assessment
-- Structural feature identification
-
-## 📁 Project Structure
-
-```
-peptide-tag/
-├── app.py                 # Main Flask application
-├── requirements.txt       # Python dependencies
-├── Procfile              # Deployment configuration
-├── runtime.txt           # Python version specification
-├── templates/            # HTML templates
-│   ├── index.html       # Landing page
-│   └── result.html      # Results page
-├── static/              # Static files
-│   └── style.css        # Styling
-└── DEPLOYMENT.md        # Deployment guide
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest tests/ -q
+.venv/bin/python app.py            # http://127.0.0.1:5055
 ```
 
-## 🤝 Contributing
+## How it is checked
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+`tests/test_chemistry.py` rebuilds every peptide with RDKit and compares
+structures and molecular formulas against ours, residue by residue, in several
+sequence contexts, plus random sequences. RDKit is a development dependency
+only; the app computes formulas itself so it does not have to ship a 128 MB
+chemistry toolkit to serve a page.
 
-## 📄 License
+## Layout
 
-This project is open source and available under the [MIT License](LICENSE).
+| file | what it does |
+|---|---|
+| `app.py` | routes |
+| `chemistry.py` | residues, name to sequence, SMILES, formula, pI, hydropathy |
+| `proteome.py` | searching reviewed human Swiss-Prot |
+| `artwork.py` | the residue chain: inline SVG, printable card, social image |
+| `structure.py` | ideal-geometry 3D model |
+| `printing.py` | watertight STL for 3D printing |
 
-## 🙏 Acknowledgments
+## Data
 
-- **RDKit** - Molecular cheminformatics toolkit
-- **Biopython** - Biological computation library
-- **PubChem** - Chemical database
-- **UniProt** - Protein database
-- **Flask** - Web framework
+`data/human_swissprot.fasta.gz` is 20,431 reviewed human proteins from UniProt,
+committed so the app has no runtime network dependency. Refresh with:
 
-## 📞 Contact
+```bash
+python -m proteome --refresh
+```
 
-Made by: [@https://robin-gustafsson.com/](https://robin-gustafsson.com/)
-
----
-
-**Turn any text into a protein! 🧬✨** # Updated for deployment
+Sequence data from [UniProt](https://www.uniprot.org/), CC BY 4.0.
+Fonts under the SIL Open Font License, see `static/fonts/README.md`.
