@@ -133,8 +133,13 @@
     show you is the same sequence built in the two textbook backbone shapes.
     Flip between them: that is the honest version of a 3D model.
   </p>
-  <div id="viewer" class="viewer" data-pdb="{{ url_for('model_pdb', name=name) }}"></div>
-  <div class="actions">
+  {#- The drawn helix is the baseline everyone sees, including when the viewer
+      script is blocked. 3Dmol replaces it with a canvas you can spin. -#}
+  <div id="viewer" class="viewer" data-pdb="{{ url_for('model_pdb', name=name) }}">
+    <div class="viewer-still" id="viewer-still">{{ helix_svg | safe }}</div>
+    <div class="viewer-live" id="viewer-live"></div>
+  </div>
+  <div class="actions" id="shapes" hidden>
     <button type="button" class="shape is-on" data-shape="helix">alpha helix</button>
     <button type="button" class="shape" data-shape="strand">extended strand</button>
   </div>
@@ -148,14 +153,35 @@
   <h2>Take it off the screen</h2>
   <p class="prose">
     The tag prints as a poster. The model prints on a 3D printer: it comes out
-    about 90&nbsp;mm across, already sitting on a base, with the struts thick
-    enough to survive the post.
+    about 90 mm across, already sitting on a base, with the struts thick enough
+    to survive the post.
   </p>
   <div class="actions">
     <a href="{{ url_for('tag_svg', name=name) }}?download=1">download the tag</a>
     <a href="{{ url_for('model_stl', name=name) }}" id="stl">download the 3D model</a>
     {% if shop_url %}<a href="{{ shop_url }}" rel="noopener">order a print</a>{% endif %}
   </div>
+
+  {% if not shop_url %}
+  <div class="interest" id="interest">
+    <p class="prose">
+      I have not set up a shop. If enough people want one I will: a proper
+      printed poster of this, and maybe the model printed in resin. Leave your
+      address and I will count you, and write to you only if it happens.
+    </p>
+    <form class="ask" id="interest-form" action="{{ url_for('register_interest') }}" method="POST">
+      <input type="hidden" name="name" value="{{ name }}">
+      <input type="email" name="email" placeholder="you@example.com" required
+             maxlength="254" spellcheck="false" autocomplete="email"
+             aria-label="Your email address">
+      <button type="submit">count me in</button>
+    </form>
+    <p class="note" id="interest-msg" role="status">
+      One address, nothing else. No newsletter, no sharing it with anyone, and
+      you can ask to be removed at any time.
+    </p>
+  </div>
+  {% endif %}
 </section>
 
 <div class="actions">
@@ -192,44 +218,111 @@ document.getElementById('stl').addEventListener('click', function () {
   if (window.posthog) posthog.capture('stl_downloaded');
 });
 
+// Submits over fetch so the answer appears in place. Without JS the form still
+// posts normally and the endpoint returns JSON, which is ugly but not broken.
+(function () {
+  var form = document.getElementById('interest-form');
+  if (!form) { return; }
+  var msg = document.getElementById('interest-msg');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var button = form.querySelector('button');
+    button.disabled = true;
+    fetch(form.action, { method: 'POST', body: new FormData(form) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        msg.textContent = d.message;
+        if (d.status === 'added' || d.status === 'already') {
+          form.hidden = true;
+          if (window.posthog) posthog.capture('interest_registered', { status: d.status });
+        } else {
+          button.disabled = false;
+        }
+      })
+      .catch(function () {
+        msg.textContent = 'That did not go through. Try again in a moment.';
+        button.disabled = false;
+      });
+  });
+})();
+
 // The viewer is progressive enhancement: if the CDN is blocked or WebGL is
 // unavailable the section simply does not appear, and nothing else breaks.
 window.addEventListener('load', function () {
   var host = document.getElementById('viewer');
-  if (!host || typeof $3Dmol === 'undefined') { return; }
+  var live = document.getElementById('viewer-live');
+  if (!host || !live || typeof $3Dmol === 'undefined') { return; }
 
   var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  var viewer = $3Dmol.createViewer(host, { backgroundColor: dark ? '#0F0E0C' : '#F7F5F0' });
+  var bg = dark ? '#0F0E0C' : '#F7F5F0';
+  var viewer;
+  try {
+    viewer = $3Dmol.createViewer(live, { backgroundColor: bg });
+  } catch (err) { return; }
   var cache = {};
 
+  function draw(pdb) {
+    viewer.clear();
+    viewer.addModel(pdb, 'pdb');
+    viewer.setStyle({}, {
+      stick: { radius: 0.16, colorscheme: dark ? 'whiteCarbon' : 'blackCarbon' },
+      sphere: { scale: 0.22, colorscheme: dark ? 'whiteCarbon' : 'blackCarbon' }
+    });
+    viewer.zoomTo();
+    viewer.render();
+  }
+
   function show(shape) {
-    var url = host.dataset.pdb + '?shape=' + shape;
-    var draw = function (pdb) {
-      viewer.clear();
-      viewer.addModel(pdb, 'pdb');
-      viewer.setStyle({}, {
-        stick: { radius: 0.16, colorscheme: dark ? 'whiteCarbon' : 'blackCarbon' },
-        sphere: { scale: 0.22, colorscheme: dark ? 'whiteCarbon' : 'blackCarbon' }
-      });
-      viewer.zoomTo();
-      viewer.render();
-    };
-    if (cache[shape]) { draw(cache[shape]); return; }
-    fetch(url).then(function (r) { return r.text(); }).then(function (pdb) {
-      cache[shape] = pdb;
-      draw(pdb);
+    if (cache[shape]) { draw(cache[shape]); return Promise.resolve(); }
+    return fetch(host.dataset.pdb + '?shape=' + shape)
+      .then(function (r) { return r.text(); })
+      .then(function (pdb) { cache[shape] = pdb; draw(pdb); });
+  }
+
+  // Probing for a WebGL context is not enough: headless and software-blocked
+  // machines hand one over and then render nothing. So the drawn helix is only
+  // swapped out once the canvas has verifiably painted something, which means
+  // actually counting pixels that differ from the background.
+  function painted() {
+    return new Promise(function (resolve) {
+      var uri;
+      try { uri = viewer.pngURI(); } catch (err) { resolve(false); return; }
+      if (typeof uri !== 'string' || uri.indexOf('data:image') !== 0) { resolve(false); return; }
+      var img = new Image();
+      img.onerror = function () { resolve(false); };
+      img.onload = function () {
+        try {
+          var w = Math.min(img.width, 240), h = Math.min(img.height, 140);
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          var ctx = cv.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          var d = ctx.getImageData(0, 0, w, h).data, first = null, differing = 0;
+          for (var i = 0; i < d.length; i += 4) {
+            var key = d[i] + ',' + d[i + 1] + ',' + d[i + 2];
+            if (first === null) { first = key; } else if (key !== first) { differing++; }
+          }
+          resolve(differing > 40);
+        } catch (err) { resolve(false); }
+      };
+      img.src = uri;
     });
   }
 
-  show('helix');
-  host.classList.add('is-live');
+  show('helix').then(painted).then(function (ok) {
+    if (!ok) { return; }
+    document.getElementById('viewer-still').remove();
+    host.classList.add('is-live');
+    var shapes = document.getElementById('shapes');
+    if (shapes) { shapes.hidden = false; }
 
-  Array.prototype.forEach.call(document.querySelectorAll('.shape'), function (b) {
-    b.addEventListener('click', function () {
-      document.querySelectorAll('.shape').forEach(function (o) { o.classList.remove('is-on'); });
-      b.classList.add('is-on');
-      show(b.dataset.shape);
-      if (window.posthog) posthog.capture('shape_toggled', { shape: b.dataset.shape });
+    Array.prototype.forEach.call(document.querySelectorAll('.shape'), function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('.shape').forEach(function (o) { o.classList.remove('is-on'); });
+        b.classList.add('is-on');
+        show(b.dataset.shape);
+        if (window.posthog) posthog.capture('shape_toggled', { shape: b.dataset.shape });
+      });
     });
   });
 });

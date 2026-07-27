@@ -135,6 +135,70 @@ def test_social_urls_respect_the_forwarded_protocol(client):
     assert "http://peptide-tag-production" not in body
 
 
+def test_interest_form_appears_only_while_there_is_no_shop(client, monkeypatch):
+    assert b"count me in" in client.get("/p/Robin").data
+    monkeypatch.setenv("SHOP_URL", "https://example.com/shop")
+    body = client.get("/p/Robin").data
+    assert b"count me in" not in body
+    assert b"order a print" in body
+
+
+def test_interest_accepts_an_address_once(client, tmp_path, monkeypatch):
+    import interest
+    monkeypatch.setattr(interest, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(interest, "_recent", {})
+    r = client.post("/interest", data={"email": "a@b.com", "name": "Robin"})
+    assert r.status_code == 200 and r.get_json()["status"] == "added"
+    r = client.post("/interest", data={"email": "A@B.com", "name": "Robin"})
+    assert r.get_json()["status"] == "already"
+    assert interest.count() == 1
+
+
+@pytest.mark.parametrize("bad", ["", "nope", "a@b", "a b@c.com", "@b.com", "a@@b.com"])
+def test_interest_rejects_rubbish(client, tmp_path, monkeypatch, bad):
+    import interest
+    monkeypatch.setattr(interest, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(interest, "_recent", {})
+    r = client.post("/interest", data={"email": bad})
+    assert r.status_code == 400
+    assert r.get_json()["status"] == "invalid"
+
+
+def test_interest_is_rate_limited(client, tmp_path, monkeypatch):
+    import interest
+    monkeypatch.setattr(interest, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(interest, "_recent", {})
+    codes = [client.post("/interest", data={"email": f"p{i}@q.com"}).status_code
+             for i in range(interest.RATE_LIMIT + 2)]
+    assert 429 in codes
+
+
+def test_interest_export_needs_the_token(client, monkeypatch):
+    monkeypatch.delenv("EXPORT_TOKEN", raising=False)
+    assert client.get("/interest.csv").status_code == 404
+    monkeypatch.setenv("EXPORT_TOKEN", "s3cret")
+    assert client.get("/interest.csv").status_code == 404
+    assert client.get("/interest.csv?token=wrong").status_code == 404
+    r = client.get("/interest.csv?token=s3cret")
+    assert r.status_code == 200
+    assert r.data.startswith(b"created_at,email")
+
+
+def test_an_address_can_be_removed(tmp_path, monkeypatch):
+    import interest
+    monkeypatch.setattr(interest, "DATA_DIR", tmp_path)
+    interest.add("gone@example.com")
+    assert interest.delete("GONE@example.com") is True
+    assert interest.delete("gone@example.com") is False
+
+
+def test_result_page_shows_the_helix_without_javascript(client):
+    """The drawn helix must be in the HTML, not only after 3Dmol loads."""
+    body = client.get("/p/Robin").data.decode()
+    assert "viewer-still" in body
+    assert "Idealised alpha helix" in body
+
+
 def test_healthz_reports_a_loaded_proteome(client):
     data = client.get("/healthz").get_json()
     assert data["ok"] is True

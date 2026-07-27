@@ -55,4 +55,4 @@ instance/
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp var/

@@ -186,35 +186,62 @@ def chain_svg(sequence: str, max_width: int = 760, max_cols: int = 10,
 
 def specimen_svg(name: str, sequence: str, props: dict,
                  theme: dict | None = None, width: int = 1000) -> str:
-    """The downloadable card: name, chain, sequence, numbers. No borders."""
+    """The downloadable card: name, letter chain, the helix, and the numbers.
+
+    Everything is stacked from an explicit running cursor. The previous version
+    hard-coded a 150px header and then translated the chain to exactly 150,
+    which put the tiles straight through the "THE PEPTIDE OF THAT NAME" line and
+    left a large void underneath.
+    """
     t = theme or LIGHT
     margin = 80
     inner = width - margin * 2
-    lay = plan(len(sequence), inner - 120, max_cols=10)
 
+    lay = plan(len(sequence), inner - 120, max_cols=10)
     chain = chain_svg(sequence, max_width=inner - 120, theme=t, inline=False)
-    chain_h = lay.height + 40
-    head_h = 150
-    foot_h = 130
-    height = head_h + chain_h + foot_h
+    chain_w = lay.width + max(11, round(0.24 * lay.tile)) * 6
+
+    helix_w = inner
+    helix_h = 300 if lay.rows <= 2 else 260
+    helix = helix_svg(sequence, width=helix_w, height=helix_h, theme=t, inline=False)
+
+    head_h = 178                       # name plus eyebrow, with air beneath
+    chain_h = lay.height + 56
+    foot_h = 152                       # label, sequence, then the numbers
+    height = head_h + chain_h + helix_h + foot_h
+
+    # The sequence gets its own line and shrinks to fit. Sharing a line with the
+    # numbers meant a 24 residue name ran straight through the molecular weight.
+    letter_spacing = 2.5 if len(sequence) <= 28 else 1.2
+    seq_size = 21.0
+    if sequence:
+        fits = (inner / len(sequence) - letter_spacing) / 0.6
+        seq_size = max(10.0, min(21.0, fits))
 
     mw = props.get("molecular_weight", 0.0)
     pi = props.get("isoelectric_point", 0.0)
-    formula = props.get("formula", "")
+    formula = C.format_formula_unicode(props.get("formula", ""))
 
-    # Strip the wrapper so the chain can be positioned inside this card.
-    body = chain.split(">", 1)[1].rsplit("</svg>", 1)[0]
-    lay_w = lay.width + max(11, round(0.24 * lay.tile)) * 6
-    cx = (width - lay_w) / 2
+    def inner_of(svg: str) -> str:
+        return svg.split(">", 1)[1].rsplit("</svg>", 1)[0] if svg else ""
 
+    chain_y = head_h
+    helix_y = head_h + chain_h
+
+    # SVG collapses runs of whitespace, so the metrics are three positioned
+    # fields rather than one string padded with spaces.
+    third = inner / 3.0
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">
 <rect width="{width}" height="{height}" fill="{t['paper']}"/>
-<text x="{margin}" y="{margin + 40}" font-family="{SERIF}" font-size="44" fill="{t['ink']}">{_esc(name)}</text>
-<text x="{margin}" y="{margin + 74}" font-family="{MONO}" font-size="15" letter-spacing="1.5" fill="{t['ink50']}">THE PEPTIDE OF THAT NAME</text>
-<g transform="translate({cx:.1f}, {head_h})">{body}</g>
-<text x="{margin}" y="{height - 62}" font-family="{MONO}" font-size="20" letter-spacing="2.5" fill="{t['ink']}">{_esc(sequence)}</text>
-<text x="{margin}" y="{height - 34}" font-family="{MONO}" font-size="15" fill="{t['ink50']}">{mw:.1f} Da    pI {pi:.2f}    {_esc(C.format_formula_unicode(formula))}</text>
-<text x="{width - margin}" y="{height - 34}" font-family="{MONO}" font-size="14" text-anchor="end" fill="{t['ink50']}">peptide.tag</text>
+<text x="{margin}" y="{margin + 34}" font-family="{SERIF}" font-size="46" fill="{t['ink']}">{_esc(name)}</text>
+<text x="{margin}" y="{margin + 68}" font-family="{MONO}" font-size="14" letter-spacing="1.6" fill="{t['ink50']}">THE PEPTIDE OF THAT NAME</text>
+<g transform="translate({(width - chain_w) / 2:.1f}, {chain_y})">{inner_of(chain)}</g>
+<g transform="translate({margin}, {helix_y})">{inner_of(helix)}</g>
+<text x="{margin}" y="{height - 100}" font-family="{MONO}" font-size="13" letter-spacing="1.6" fill="{t['ink50']}">IDEALISED ALPHA HELIX, A STYLISATION</text>
+<text x="{margin}" y="{height - 62}" font-family="{MONO}" font-size="{seq_size:.1f}" letter-spacing="{letter_spacing}" fill="{t['ink']}">{_esc(sequence)}</text>
+<text x="{margin}" y="{height - 30}" font-family="{MONO}" font-size="15" fill="{t['ink50']}">{mw:.1f} Da</text>
+<text x="{margin + third:.0f}" y="{height - 30}" font-family="{MONO}" font-size="15" fill="{t['ink50']}">pI {pi:.2f}</text>
+<text x="{width - margin}" y="{height - 30}" font-family="{MONO}" font-size="15" text-anchor="end" fill="{t['ink50']}">{_esc(formula)}</text>
 </svg>"""
 
 
@@ -316,3 +343,126 @@ def social_png(name: str, sequence: str, props: dict) -> bytes:
     buf = BytesIO()
     img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# The helix
+#
+# An orthographic projection of the ideal alpha helix from structure.py, drawn
+# ball and stick in the same two inks as everything else. Atoms and bonds get a
+# paper-coloured halo so that overlapping geometry still reads, which is the
+# trick that makes a flat monochrome projection legible without colour.
+# ---------------------------------------------------------------------------
+
+# Relative ball sizes. Carbon is the reference.
+_ATOM_R = {"C": 1.0, "N": 0.95, "O": 0.92, "S": 1.25, "SE": 1.35, "H": 0.6}
+_BOND_MAX = 1.85
+
+
+def _parse_pdb(pdb: str):
+    import numpy as np
+    elements, coords = [], []
+    for line in pdb.splitlines():
+        if line.startswith("ATOM"):
+            elements.append((line[76:78].strip() or line[12:16].strip()[:1]).upper())
+            coords.append((float(line[30:38]), float(line[38:46]), float(line[46:54])))
+    return elements, np.array(coords) if coords else None
+
+
+def _orient(coords):
+    """Rotate so the long axis of the molecule runs left to right."""
+    import numpy as np
+    centred = coords - coords.mean(axis=0)
+    # Principal axes. The first is the helix axis, which we want horizontal.
+    _, _, vt = np.linalg.svd(centred, full_matrices=False)
+    rotated = centred @ vt.T
+    return rotated
+
+
+def helix_svg(sequence: str, width: int = 760, height: int = 260,
+              theme: dict | None = None, inline: bool = True) -> str:
+    """Ball and stick projection of the idealised alpha helix."""
+    import numpy as np
+
+    import structure
+
+    pdb = structure.model_pdb(sequence, "helix")
+    if not pdb:
+        return ""
+    elements, coords = _parse_pdb(pdb)
+    if coords is None or len(coords) < 2:
+        return ""
+
+    t = theme or LIGHT
+
+    def col(name: str) -> str:
+        return f"var(--{name})" if inline else t[name]
+
+    pts = _orient(coords)
+    xy = pts[:, :2]
+    depth = pts[:, 2]
+
+    pad = 26
+    span = xy.max(axis=0) - xy.min(axis=0)
+    span[span == 0] = 1.0
+    scale = min((width - pad * 2) / span[0], (height - pad * 2) / span[1])
+    screen = (xy - xy.min(axis=0)) * scale
+    screen[:, 0] += (width - span[0] * scale) / 2
+    # SVG y grows downward; flip so the molecule is not upside down.
+    screen[:, 1] = (height - span[1] * scale) / 2 + (span[1] * scale - screen[:, 1])
+
+    ball = max(4.5, scale * 0.42)
+    stick = max(1.8, scale * 0.13)
+    halo = max(1.4, stick * 0.85)
+
+    bonds = []
+    for i in range(len(pts)):
+        for j in range(i + 1, len(pts)):
+            if float(np.linalg.norm(pts[i] - pts[j])) < _BOND_MAX:
+                bonds.append((i, j))
+
+    # Painter's algorithm: everything sorted back to front, so near geometry
+    # overwrites far geometry and the halos do the occlusion work.
+    items = [("bond", i, j, (depth[i] + depth[j]) / 2) for i, j in bonds]
+    items += [("atom", i, i, depth[i]) for i in range(len(pts))]
+    items.sort(key=lambda it: it[3])
+
+    lo, hi = float(depth.min()), float(depth.max())
+    rng = (hi - lo) or 1.0
+
+    parts: list[str] = []
+    for kind, i, j, d in items:
+        # Far geometry is drawn slightly lighter, which reads as depth without
+        # introducing a second colour.
+        fade = 0.55 + 0.45 * ((d - lo) / rng)
+        if kind == "bond":
+            x1, y1 = screen[i]
+            x2, y2 = screen[j]
+            # No halo on the sticks. Giving them one carved paper channels
+            # everywhere and the whole thing read as outlined noodles.
+            parts.append(
+                f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+                f'stroke="{col("ink")}" stroke-width="{stick:.1f}" '
+                f'stroke-linecap="round" opacity="{fade:.2f}"/>'
+            )
+        else:
+            x, y = screen[i]
+            r = ball * _ATOM_R.get(elements[i], 1.0)
+            # Every atom is the same ink. Element is carried by size, not by a
+            # second colour, and the paper ring is what separates one ball from
+            # the one behind it.
+            parts.append(
+                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + halo:.1f}" '
+                f'fill="{col("paper")}"/>'
+                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" '
+                f'fill="{col("ink")}" opacity="{fade:.2f}"/>'
+            )
+
+    body = "".join(parts)
+    label = f"Idealised alpha helix of the peptide {sequence}."
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+        f'style="display:block;width:100%;height:auto;max-width:{width}px" '
+        f'role="img" aria-label="{_esc(label)}">'
+        f'<title>{_esc(label)}</title>{body}</svg>'
+    )

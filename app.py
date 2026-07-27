@@ -18,6 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import artwork
 import chemistry as C
+import interest
 import printing
 import proteome
 import structure
@@ -113,6 +114,7 @@ def build(name: str) -> dict | None:
         "projected": standard != seq,
         "chain_svg": artwork.chain_svg(seq, max_width=760, max_cols=10),
         "chain_svg_narrow": artwork.chain_svg(seq, max_width=330, max_cols=6),
+        "helix_svg": artwork.helix_svg(seq, width=760, height=380),
     }
 
 
@@ -203,10 +205,59 @@ def model_stl(name: str):
     })
 
 
+@app.route("/interest", methods=["POST"])
+def register_interest():
+    """Somebody would buy a print. There is no shop yet; this is the evidence
+    for whether building one is worth it."""
+    email = (request.form.get("email") or "")[:300].strip()
+    name = canonical(request.form.get("name", ""))
+    sequence = C.text_to_sequence(name).sequence
+
+    if not interest.valid(email):
+        return {"ok": False, "status": "invalid",
+                "message": "That does not look like an email address."}, 400
+
+    if interest.throttled(request.remote_addr or "unknown"):
+        return {"ok": False, "status": "throttled",
+                "message": "Too many just now. Try again in a few minutes."}, 429
+
+    status = interest.add(email, name=name, sequence=sequence)
+    messages = {
+        "added": "Noted. I will only email you if this actually becomes a thing.",
+        "already": "You are already on the list.",
+        "invalid": "That does not look like an email address.",
+    }
+    return {"ok": status != "invalid", "status": status,
+            "message": messages[status]}, (400 if status == "invalid" else 200)
+
+
+@app.route("/interest.csv")
+def export_interest():
+    """Token-protected export, so the list is readable without a database client."""
+    token = os.environ.get("EXPORT_TOKEN", "")
+    if not token or request.args.get("token") != token:
+        abort(404)
+    lines = ["created_at,email,name,sequence,wants"]
+    for row in interest.rows():
+        lines.append(",".join('"' + str(v or "").replace('"', '""') + '"'
+                              for v in row))
+    return Response("\n".join(lines) + "\n", mimetype="text/csv", headers={
+        "Content-Disposition": 'attachment; filename="peptide-interest.csv"',
+        "Cache-Control": "no-store",
+    })
+
+
 @app.route("/healthz")
 def healthz():
     p = proteome.get()
-    return {"ok": True, "proteins": len(p.proteins), "residues": p.residues}
+    return {
+        "ok": True,
+        "proteins": len(p.proteins),
+        "residues": p.residues,
+        "interest": interest.count(),
+        # False means the volume is not mounted and signups die on redeploy.
+        "interest_durable": interest.durable(),
+    }
 
 
 @app.errorhandler(404)
